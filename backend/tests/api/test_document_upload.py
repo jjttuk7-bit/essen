@@ -67,3 +67,50 @@ def test_upload_over_size_limit_returns_413_without_reading_all_content_or_parsi
 
     assert response.status_code == 413
     assert -1 not in read_sizes
+
+
+def _upload_client() -> TestClient:
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+
+    def session_override() -> Generator[Session, None, None]:
+        with Session(engine) as session:
+            yield session
+
+    app = create_app()
+    app.dependency_overrides[get_session] = session_override
+    return TestClient(app)
+
+
+def test_uploading_a_valid_two_megabyte_file_reaches_the_endpoint(monkeypatch) -> None:
+    from app.api.documents import DocumentParserService
+    from app.models.document import SourceType
+    from app.services.parser.base import ParsedDocument, ParsedSegment
+
+    monkeypatch.setattr(DocumentParserService, "parse", lambda *_args, **_kwargs: ParsedDocument(SourceType.TEXT, "accepted", [ParsedSegment(0, "accepted", None, 1)]))
+    response = _upload_client().post(
+        "/documents",
+        files={"file": ("two-megabytes.txt", b"x" * (2 * 1024 * 1024), "text/plain")},
+    )
+    assert response.status_code == 201
+
+
+def test_uploading_an_exactly_ten_megabyte_file_is_accepted(monkeypatch) -> None:
+    from app.api.documents import DocumentParserService
+    from app.models.document import SourceType
+    from app.services.parser.base import ParsedDocument, ParsedSegment
+
+    monkeypatch.setattr(DocumentParserService, "parse", lambda *_args, **_kwargs: ParsedDocument(SourceType.TEXT, "accepted", [ParsedSegment(0, "accepted", None, 1)]))
+    response = _upload_client().post(
+        "/documents",
+        files={"file": ("ten-megabytes.txt", b"x" * (10 * 1024 * 1024), "text/plain")},
+    )
+    assert response.status_code == 201
+
+def test_malformed_multipart_body_remains_a_400_error() -> None:
+    response = TestClient(create_app()).post(
+        "/documents",
+        content=b"not-a-valid-multipart-body",
+        headers={"content-type": "multipart/form-data; boundary=boundary"},
+    )
+    assert response.status_code == 400
