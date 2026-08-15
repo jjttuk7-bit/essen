@@ -1,0 +1,69 @@
+from collections.abc import Generator
+
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
+
+from app.core.database import get_session
+from app.main import create_app
+from app.models.base import Base
+from app.models.document import Document
+
+
+def test_uploading_text_persists_document_and_ordered_segments() -> None:
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+
+    def session_override() -> Generator[Session, None, None]:
+        with Session(engine) as session:
+            yield session
+
+    app = create_app()
+    app.dependency_overrides[get_session] = session_override
+    response = TestClient(app).post(
+        "/documents",
+        files={"file": ("brief.txt", b"First paragraph.\n\nSecond paragraph.", "text/plain")},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["source_type"] == "text"
+    assert response.json()["segment_count"] == 2
+    with Session(engine) as session:
+        document = session.scalar(select(Document))
+        assert document is not None
+        assert [(segment.order_index, segment.paragraph) for segment in document.segments] == [(0, 1), (1, 2)]
+
+
+def test_uploading_empty_text_layer_pdf_returns_unprocessable_entity() -> None:
+    response = TestClient(create_app()).post(
+        "/documents",
+        files={"file": ("scan.pdf", b"%PDF-1.4\n% empty scan", "application/pdf")},
+    )
+
+    assert response.status_code == 422
+    assert "text" in response.json()["detail"].lower()
+
+def test_upload_over_size_limit_returns_413_without_reading_all_content_or_parsing(monkeypatch) -> None:
+    from app.api import documents
+    from starlette.datastructures import UploadFile as StarletteUploadFile
+
+    def parsing_must_not_run(*args, **kwargs):
+        raise AssertionError("the parser must not receive oversized content")
+
+    read_sizes: list[int] = []
+    original_read = StarletteUploadFile.read
+
+    async def recording_read(upload, size: int = -1):
+        read_sizes.append(size)
+        return await original_read(upload, size)
+
+    monkeypatch.setattr(documents.DocumentParserService, "parse", parsing_must_not_run)
+    monkeypatch.setattr(StarletteUploadFile, "read", recording_read)
+    response = TestClient(create_app()).post(
+        "/documents",
+        files={"file": ("large.txt", b"x" * (documents.MAX_UPLOAD_BYTES + 1), "text/plain")},
+    )
+
+    assert response.status_code == 413
+    assert -1 not in read_sizes
