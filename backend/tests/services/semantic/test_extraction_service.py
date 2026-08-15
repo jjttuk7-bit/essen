@@ -29,7 +29,7 @@ def test_extraction_persists_source_linked_slots_relations_and_review_items() ->
         assert session.scalars(select(AnalysisRun)).one().raw_model_output
         slots = session.scalars(select(SemanticSlot)).all()
         assert slots and {slot.source_segment_id for slot in slots} == {document.segments[0].id}
-        assert session.scalars(select(Relation)).all() == []
+        assert [relation.relation_type for relation in session.scalars(select(Relation)).all()] == ["due_at"]
 
 
 def test_documented_relations_are_directional_and_never_cross_source_segments() -> None:
@@ -39,6 +39,8 @@ def test_documented_relations_are_directional_and_never_cross_source_segments() 
         SemanticSlot(id="decision", analysis_run_id="run", source_segment_id="b", slot_type=SlotType.DECISION, normalized_text="decision", confidence=1, importance=1),
         SemanticSlot(id="action", analysis_run_id="run", source_segment_id="b", slot_type=SlotType.ACTION, normalized_text="action", confidence=1, importance=1),
         SemanticSlot(id="owner", analysis_run_id="run", source_segment_id="b", slot_type=SlotType.OWNER, normalized_text="owner", confidence=1, importance=1),
+        SemanticSlot(id="deadline", analysis_run_id="run", source_segment_id="b", slot_type=SlotType.DEADLINE, normalized_text="deadline", confidence=1, importance=1),
+        SemanticSlot(id="criteria", analysis_run_id="run", source_segment_id="b", slot_type=SlotType.SUCCESS_CRITERIA, normalized_text="criteria", confidence=1, importance=1),
         SemanticSlot(id="unrelated-fact", analysis_run_id="run", source_segment_id="c", slot_type=SlotType.FACT, normalized_text="unrelated", confidence=1, importance=1),
         SemanticSlot(id="unrelated-action", analysis_run_id="run", source_segment_id="d", slot_type=SlotType.ACTION, normalized_text="unrelated", confidence=1, importance=1),
     ]
@@ -49,6 +51,8 @@ def test_documented_relations_are_directional_and_never_cross_source_segments() 
         ("fact", "supported_by", "evidence"),
         ("decision", "triggers", "action"),
         ("action", "owned_by", "owner"),
+        ("action", "due_at", "deadline"),
+        ("action", "measured_by", "criteria"),
     }
 
 

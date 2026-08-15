@@ -10,6 +10,8 @@ RELATION_RULES: dict[tuple[SlotType, SlotType], str] = {
     (SlotType.CLAIM, SlotType.EVIDENCE): "supported_by",
     (SlotType.DECISION, SlotType.ACTION): "triggers",
     (SlotType.ACTION, SlotType.OWNER): "owned_by",
+    (SlotType.ACTION, SlotType.DEADLINE): "due_at",
+    (SlotType.ACTION, SlotType.SUCCESS_CRITERIA): "measured_by",
 }
 
 
