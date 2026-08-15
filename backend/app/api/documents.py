@@ -8,6 +8,9 @@ from app.models.document import Document, Segment
 from app.schemas.document import DocumentUploadResponse
 from app.services.parser.base import ParseError
 from app.services.parser.service import DocumentParserService
+from app.core.config import get_settings
+from app.services.llm.factory import create_llm_adapter
+from app.services.semantic.service import SemanticExtractionService
 
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -52,3 +55,37 @@ async def upload_document(file: UploadFile, session: Session = Depends(get_sessi
         raise
     return DocumentUploadResponse(document_id=document.id, source_type=document.source_type,
                                   segment_count=len(document.segments))
+
+
+@router.post("/{document_id}/analyze", status_code=status.HTTP_202_ACCEPTED)
+def analyze_document(document_id: str, session: Session = Depends(get_session)) -> dict[str, object]:
+    service = SemanticExtractionService(adapter=create_llm_adapter(get_settings()))
+    try:
+        result = service.analyze_document(session, document_id)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail="Document not found") from error
+    except Exception:
+        session.rollback()
+        raise
+    return {
+        "analysis_run_id": result.analysis_run_id,
+        "document_id": document_id,
+        "purpose": result.purpose,
+        "audience": result.audience,
+        "semantic_slots": [
+            {
+                "id": slot.id,
+                "slot": slot.slot_type.value,
+                "text": slot.normalized_text,
+                "source_segment_id": slot.source_segment_id,
+                "confidence": slot.confidence,
+                "importance": slot.importance,
+            }
+            for slot in result.semantic_slots
+        ],
+        "relations": [
+            {"from_slot_id": relation.from_slot_id, "relation_type": relation.relation_type, "to_slot_id": relation.to_slot_id}
+            for relation in result.relations
+        ],
+        "review_required_slot_ids": result.review_required_slot_ids,
+    }
