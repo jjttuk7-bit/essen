@@ -20,34 +20,12 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
 
 export function uploadDocument(file: File): Promise<UploadedDocument> { const body = new FormData(); body.append("file", file); return request<UploadedDocument>("/documents", { method: "POST", body }); }
 export function analyzeDocument(documentId: string): Promise<unknown> { return request(`/documents/${documentId}/analyze`, { method: "POST" }); }
+export function renderDocument(documentId: string): Promise<RenderResponse> { return request<RenderResponse>(`/documents/${documentId}/render`, { method: "POST" }); }
 export type Diagnosis = { document_signal_score: number; signal_ratio: number; redundancy_ratio: number; evidence_coverage: number; decision_completeness: number; gaps: string[] };
-export type SemanticMap = { slots: Array<{ id: string; slot: string; text: string }> };
+export type SemanticMap = { slots: Array<{ id: string; slot: string; text: string; provenance: { source_segment_id: string } }> };
 export function getDiagnosis(documentId: string): Promise<Diagnosis> { return request(`/documents/${documentId}/diagnosis`, { method: "GET" }); }
 export function getSemanticMap(documentId: string): Promise<SemanticMap> { return request(`/documents/${documentId}/semantic-map`, { method: "GET" }); }
-export type RenderedSection = {
-  heading: string;
-  text: string;
-  source_slot_ids: string[];
-  source_segment_ids: string[];
-};
-
-export type RenderedOutput = {
-  id: string;
-  output_type: string;
-  content: string;
-  sections: RenderedSection[];
-  version: number;
-  audience: string | null;
-  max_words: number | null;
-  render_config_hash: string;
-};
-
-export type RenderResponse = {
-  document_id: string;
-  analysis_run_id: string;
-  outputs: RenderedOutput[];
-};
-
-export function getOutputs(documentId: string): Promise<RenderResponse> {
-  return request<RenderResponse>(`/documents/${documentId}/outputs`, { method: "GET" });
-}
+export type RenderedSection = { heading: string; text: string; source_slot_ids: string[]; source_segment_ids: string[] };
+export type RenderedOutput = { id: string; output_type: string; content: string; sections: RenderedSection[]; version: number; audience: string | null; max_words: number | null; render_config_hash: string };
+export type RenderResponse = { document_id: string; analysis_run_id: string; outputs: RenderedOutput[] };
+export function getOutputs(documentId: string): Promise<RenderResponse> { return request<RenderResponse>(`/documents/${documentId}/outputs`, { method: "GET" }); }
