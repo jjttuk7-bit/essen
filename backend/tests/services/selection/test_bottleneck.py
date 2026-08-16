@@ -121,3 +121,52 @@ class TestContract:
         findings = detect_bottlenecks(segments)
 
         assert [finding.share for finding in findings] == sorted((f.share for f in findings), reverse=True)
+
+
+class TestWhatCountsAsABottleneckDependsOnTheDocument:
+    """A trait is only a defect relative to what the document is trying to be."""
+
+    QUESTIONS = [_segment(index, f"{index}. 이 데이터는 어떤 문제의식에서 필요한가?") for index in range(5)]
+
+    def test_open_questions_are_a_bottleneck_in_a_report(self) -> None:
+        """A report that only asks leaves the reader unable to decide."""
+        kinds = _kinds(detect_bottlenecks(self.QUESTIONS, kind="분석 보고서"))
+
+        assert Bottleneck.UNRESOLVED in kinds
+
+    def test_open_questions_are_the_design_of_a_guide(self) -> None:
+        assert Bottleneck.UNRESOLVED not in _kinds(detect_bottlenecks(self.QUESTIONS, kind="절차 안내서"))
+
+    def test_open_questions_are_the_whole_point_of_a_questionnaire(self) -> None:
+        assert Bottleneck.UNRESOLVED not in _kinds(detect_bottlenecks(self.QUESTIONS, kind="질문지"))
+
+    def test_minutes_report_the_undecided_agenda_rather_than_the_questions(self) -> None:
+        """Both would describe the same failure; the agenda one says it usefully."""
+        assert Bottleneck.UNRESOLVED not in _kinds(detect_bottlenecks(self.QUESTIONS, kind="회의록"))
+
+
+class TestTablesInAReportAreTheEvidence:
+    TABLE_HEAVY = [
+        _segment(0, "축\n완전성\n일관성\n정확성\n유효성"),
+        _segment(1, "구분\n1분기\n2분기\n3분기\n4분기"),
+        _segment(2, "집행률은 62%로 계획을 밑돈다."),
+    ]
+
+    def test_a_table_is_structure_noise_in_a_guide(self) -> None:
+        assert Bottleneck.STRUCTURE_NOISE in _kinds(detect_bottlenecks(self.TABLE_HEAVY, kind="절차 안내서"))
+
+    def test_a_table_is_not_noise_in_a_report(self) -> None:
+        assert Bottleneck.STRUCTURE_NOISE not in _kinds(detect_bottlenecks(self.TABLE_HEAVY, kind="분석 보고서"))
+
+    def test_a_contents_page_is_still_noise_in_a_report(self) -> None:
+        """Only tables carry a report's evidence; its contents page carries nothing."""
+        segments = [_segment(0, TOC), _segment(1, "집행률은 62%로 계획을 밑돈다.")]
+
+        assert Bottleneck.STRUCTURE_NOISE in _kinds(detect_bottlenecks(segments, kind="분석 보고서"))
+
+
+class TestTheDefaultIsUnchanged:
+    def test_an_unknown_kind_keeps_every_general_bottleneck(self) -> None:
+        segments = [_segment(0, TOC), _segment(1, "일반적으로 매우 중요하다."), _segment(2, PROSE)]
+
+        assert _kinds(detect_bottlenecks(segments, kind="처음 보는 종류")) == _kinds(detect_bottlenecks(segments))

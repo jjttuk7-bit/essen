@@ -48,9 +48,19 @@ LABELS = {
     Bottleneck.UNASSIGNED: "담당 없는 결정",
 }
 
-# Bottlenecks only some documents can have. An agenda that decided nothing is a defect in
-# minutes and meaningless anywhere else.
-MINUTES_ONLY = (Bottleneck.UNDECIDED, Bottleneck.UNASSIGNED)
+# A trait is only a defect relative to what the document is trying to be, so the kind
+# decides which detectors run. Kinds absent here keep every general bottleneck.
+ONLY_FOR = {
+    Bottleneck.UNDECIDED: {"회의록"},
+    Bottleneck.UNASSIGNED: {"회의록"},
+}
+NOT_FOR = {
+    # A guide can be organized around questions, and a questionnaire is nothing else.
+    # Minutes have the same failure reported better as an agenda that decided nothing.
+    Bottleneck.UNRESOLVED: {"절차 안내서", "질문지", "회의록"},
+}
+# A report's tables carry its evidence; its contents page still carries nothing.
+EVIDENCE_IS_TABULAR = {"분석 보고서"}
 
 
 @dataclass(frozen=True)
@@ -79,12 +89,15 @@ def _sentences(text: str) -> list[str]:
     return [" ".join(part.split()) for part in SENTENCE.split(text) if len(part.strip()) >= 10]
 
 
-def _structure_noise(segments: Sequence[object]) -> tuple[list[str], str]:
-    noisy = [getattr(segment, "id") for segment in segments if classify_shape(getattr(segment, "text")) in (Shape.TOC, Shape.TABLE)]
-    return noisy, f"목차·표 조각 {len(noisy)}개 문단은 읽고 나서야 본문이 아님을 알게 됩니다"
+def _structure_noise(segments: Sequence[object], kind: str = "") -> tuple[list[str], str]:
+    tabular = kind in EVIDENCE_IS_TABULAR
+    shapes = (Shape.TOC,) if tabular else (Shape.TOC, Shape.TABLE)
+    noisy = [getattr(segment, "id") for segment in segments if classify_shape(getattr(segment, "text")) in shapes]
+    what = "목차" if tabular else "목차·표 조각"
+    return noisy, f"{what} {len(noisy)}개 문단은 읽고 나서야 본문이 아님을 알게 됩니다"
 
 
-def _repetition(segments: Sequence[object]) -> tuple[list[str], str]:
+def _repetition(segments: Sequence[object], kind: str = "") -> tuple[list[str], str]:
     seen: list[set[str]] = []
     repeats: list[str] = []
     for segment in segments:
@@ -96,12 +109,12 @@ def _repetition(segments: Sequence[object]) -> tuple[list[str], str]:
     return repeats, f"같은 내용이 {len(repeats)}번 다시 나와 앞 내용과 대조하게 됩니다"
 
 
-def _generality(segments: Sequence[object]) -> tuple[list[str], str]:
+def _generality(segments: Sequence[object], kind: str = "") -> tuple[list[str], str]:
     generic = [getattr(segment, "id") for segment in segments if GENERIC.search(getattr(segment, "text"))]
     return generic, f"{len(generic)}개 문단이 일반론이라 읽어도 남는 정보가 없습니다"
 
 
-def _buried_core(segments: Sequence[object]) -> tuple[list[str], str]:
+def _buried_core(segments: Sequence[object], kind: str = "") -> tuple[list[str], str]:
     buried: list[str] = []
     for segment in segments:
         text = getattr(segment, "text")
@@ -117,7 +130,7 @@ def _buried_core(segments: Sequence[object]) -> tuple[list[str], str]:
     return buried, f"{len(buried)}개 긴 문단은 핵심이 본문 속에 묻혀 훑어서는 보이지 않습니다"
 
 
-def _unresolved(segments: Sequence[object]) -> tuple[list[str], str]:
+def _unresolved(segments: Sequence[object], kind: str = "") -> tuple[list[str], str]:
     asking = [getattr(segment, "id") for segment in segments if INTERROGATIVE.search(" ".join(getattr(segment, "text").split()))]
     if len(asking) < UNRESOLVED_RUN:
         return [], ""
@@ -136,7 +149,7 @@ def _agenda_items(segments: Sequence[object]) -> list[tuple[str, list[object]]]:
     return items
 
 
-def _undecided(segments: Sequence[object]) -> tuple[list[str], str]:
+def _undecided(segments: Sequence[object], kind: str = "") -> tuple[list[str], str]:
     """An agenda item that produced no decision is the one that returns next week."""
     open_items = [
         (heading, discussion) for heading, discussion in _agenda_items(segments)
@@ -149,7 +162,7 @@ def _undecided(segments: Sequence[object]) -> tuple[list[str], str]:
     return segment_ids, f"{names}은(는) 논의만 하고 결론이 남지 않았습니다"
 
 
-def _unassigned(segments: Sequence[object]) -> tuple[list[str], str]:
+def _unassigned(segments: Sequence[object], kind: str = "") -> tuple[list[str], str]:
     """A decision nobody owns and nothing dates is a decision that will not happen."""
     orphaned = [
         getattr(segment, "id") for segment in segments
@@ -183,9 +196,11 @@ def detect_bottlenecks(segments: Sequence[object], kind: str = "") -> list[Bottl
 
     findings = []
     for bottleneck, detect in DETECTORS:
-        if bottleneck in MINUTES_ONLY and kind != "회의록":
+        if kind not in ONLY_FOR.get(bottleneck, {kind}):
             continue
-        segment_ids, detail = detect(ordered)
+        if kind in NOT_FOR.get(bottleneck, set()):
+            continue
+        segment_ids, detail = detect(ordered, kind)
         if segment_ids:
             findings.append(BottleneckFinding(kind=bottleneck, share=round(len(segment_ids) / len(ordered), 4), detail=detail, segment_ids=tuple(segment_ids)))
     return sorted(findings, key=lambda finding: -finding.share)
