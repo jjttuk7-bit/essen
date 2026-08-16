@@ -1,8 +1,8 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { getDiagnosis, getSemanticMap, getOutputs } = vi.hoisted(() => ({ getDiagnosis: vi.fn(), getSemanticMap: vi.fn(), getOutputs: vi.fn() }));
-vi.mock("@/lib/api", () => ({ getDiagnosis, getSemanticMap, getOutputs }));
+const { getDiagnosis, getSemanticMap, getOutputs, getDiff } = vi.hoisted(() => ({ getDiagnosis: vi.fn(), getSemanticMap: vi.fn(), getOutputs: vi.fn(), getDiff: vi.fn() }));
+vi.mock("@/lib/api", () => ({ getDiagnosis, getSemanticMap, getOutputs, getDiff }));
 import { DiagnosisWorkspace } from "./diagnosis-workspace";
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });

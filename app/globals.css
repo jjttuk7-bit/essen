@@ -78,3 +78,20 @@ a { color: inherit; }
 .audit-metadata { display: flex; flex-wrap: wrap; gap: .35rem .75rem; padding-block: .85rem; border-block-end: 1px solid var(--hairline); color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .7rem; font-variant-numeric: tabular-nums; }
 .audit-metadata span + span { padding-inline-start: .75rem; border-inline-start: 1px solid var(--hairline); }
 @media (max-width: 560px) { .audit-metadata { gap: .45rem; }.audit-metadata span + span { padding-inline-start: 0; border-inline-start: 0; } }
+.diff-panel { padding: 0 1.25rem 1.35rem; border-block-start: 1px solid var(--hairline); }
+.diff-panel .workspace-title-row { padding-inline: 0; }
+.diff-panel > p { padding-block: 1.35rem; margin: 0; color: var(--muted); }
+.diff-counts { display: flex; flex-wrap: wrap; gap: .35rem; justify-content: flex-end; }
+.diff-count { padding: .2rem .5rem; border: 1px solid var(--hairline); border-radius: .3rem; font-size: .7rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.diff-list { list-style: none; margin: 0; padding: 0; }
+.diff-entry { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 1rem; padding-block: 1.15rem; border-block-end: 1px solid var(--hairline); }
+.diff-entry:last-child { border-block-end: 0; }
+.diff-original { max-width: 68ch; margin: 0; color: #34434d; line-height: 1.7; }
+.diff-reason { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem; max-width: 68ch; margin: .5rem 0 0; color: var(--muted); font-size: .85rem; line-height: 1.6; }
+.diff-badge { padding: .1rem .45rem; border-radius: .3rem; font-size: .7rem; font-weight: 700; }
+.diff-emphasized .diff-badge, .diff-count.diff-emphasized { border: 1px solid #cfe6e2; background: #eaf5f3; color: var(--signal); }
+.diff-merged .diff-badge, .diff-count.diff-merged { border: 1px solid #d6dfe8; background: #eef3f8; color: #2f5a80; }
+.diff-removed .diff-badge, .diff-count.diff-removed { border: 1px solid #f0d5d2; background: #fbeeec; color: var(--error); }
+.diff-held .diff-badge, .diff-count.diff-held { border: 1px solid #ece0cd; background: #fbf3e7; color: var(--warning); }
+.diff-removed .diff-original { text-decoration: line-through; text-decoration-color: #d9a9a3; color: var(--muted); }
+@media (max-width: 560px) { .diff-panel { padding-inline: 1rem; }.diff-counts { justify-content: flex-start; }.diff-entry { grid-template-columns: 1.5rem minmax(0, 1fr); gap: .65rem; } }

@@ -2,7 +2,9 @@ import hashlib
 import json
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -11,11 +13,12 @@ from app.core.config import get_settings
 from app.core.database import get_session
 from app.models.analysis import AnalysisRun, AnalysisStatus, Gap, QualityCategory, QualityLabel, Relation, RenderedOutput, SemanticSlot
 from app.models.document import Document, Segment
-from app.schemas.api import DiagnosisResponse, RenderRequest, RenderResponse, RenderedOutputResponse, SemanticMapResponse
+from app.schemas.api import DiagnosisResponse, DiffResponse, RenderRequest, RenderResponse, RenderedOutputResponse, SemanticMapResponse
 from app.schemas.document import DocumentUploadResponse
 from app.services.llm.factory import create_llm_adapter
 from app.services.parser.base import ParseError
 from app.services.parser.service import DocumentParserService
+from app.services.diff.service import build_diff, count_dispositions
 from app.services.semantic.service import SemanticExtractionService
 from app.services.signal.service import DiagnosisService
 from app.services.renderer.service import RendererService
@@ -253,6 +256,45 @@ def render_document(document_id: str, request: RenderRequest | None = None, sess
         session.rollback()
         raise
     return RenderResponse(document_id=document.id, analysis_run_id=run.id, outputs=[_output_response(output) for output in outputs])
+
+
+@router.get("/{document_id}/diff", response_model=DiffResponse)
+def get_diff(
+    document_id: str,
+    output_type: Literal["clean_version", "executive_summary", "action_decision_sheet"] = Query(default="clean_version"),
+    session: Session = Depends(get_session),
+) -> DiffResponse:
+    document, run = _completed_analysis(session, document_id)
+    output = session.scalar(
+        select(RenderedOutput)
+        .where(RenderedOutput.analysis_run_id == run.id, RenderedOutput.output_type == output_type)
+        .order_by(RenderedOutput.version.desc())
+    )
+    if output is None:
+        raise HTTPException(status_code=409, detail=f"Render the {output_type} output before requesting its diff")
+    segments = list(session.scalars(select(Segment).where(Segment.document_id == document.id).order_by(Segment.order_index)))
+    labels = list(session.scalars(select(QualityLabel).where(QualityLabel.analysis_run_id == run.id)))
+    entries = build_diff(segments, labels, output.provenance)
+    return DiffResponse(
+        document_id=document.id,
+        analysis_run_id=run.id,
+        output_id=output.id,
+        output_type=output.output_type,
+        output_version=output.version,
+        entries=[
+            {
+                "segment_id": entry.segment_id,
+                "order_index": entry.order_index,
+                "original_text": entry.original_text,
+                "disposition": entry.disposition,
+                "reason": entry.reason,
+                "rendered_headings": list(entry.rendered_headings),
+                "provenance": {"source_segment_id": entry.segment_id},
+            }
+            for entry in entries
+        ],
+        counts=count_dispositions(entries),
+    )
 
 
 @router.get("/{document_id}/outputs", response_model=RenderResponse)

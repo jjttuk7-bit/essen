@@ -107,3 +107,27 @@ class RenderRequest(BaseModel):
     output_type: Literal["clean_version", "executive_summary", "action_decision_sheet"] | None = None
     audience: str | None = None
     max_words: int | None = Field(default=None, ge=1)
+
+
+class DiffEntryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segment_id: str
+    order_index: int
+    original_text: str
+    disposition: Literal["REMOVED", "MERGED", "EMPHASIZED", "HELD"]
+    reason: str
+    rendered_headings: list[str]
+    provenance: ProvenanceResponse
+
+
+class DiffResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str
+    analysis_run_id: str
+    output_id: str
+    output_type: str
+    output_version: int
+    entries: list[DiffEntryResponse]
+    counts: dict[str, int]

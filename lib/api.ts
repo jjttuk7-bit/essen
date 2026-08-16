@@ -29,3 +29,7 @@ export type RenderedSection = { heading: string; text: string; source_slot_ids: 
 export type RenderedOutput = { id: string; output_type: string; content: string; sections: RenderedSection[]; version: number; audience: string | null; max_words: number | null; render_config_hash: string };
 export type RenderResponse = { document_id: string; analysis_run_id: string; outputs: RenderedOutput[] };
 export function getOutputs(documentId: string): Promise<RenderResponse> { return request<RenderResponse>(`/documents/${documentId}/outputs`, { method: "GET" }); }
+export type Disposition = "REMOVED" | "MERGED" | "EMPHASIZED" | "HELD";
+export type DiffEntry = { segment_id: string; order_index: number; original_text: string; disposition: Disposition; reason: string; rendered_headings: string[]; provenance: { source_segment_id: string } };
+export type DiffResponse = { document_id: string; analysis_run_id: string; output_id: string; output_type: string; output_version: number; entries: DiffEntry[]; counts: Record<Disposition, number> };
+export function getDiff(documentId: string, outputType: string): Promise<DiffResponse> { return request<DiffResponse>(`/documents/${documentId}/diff?output_type=${encodeURIComponent(outputType)}`, { method: "GET" }); }

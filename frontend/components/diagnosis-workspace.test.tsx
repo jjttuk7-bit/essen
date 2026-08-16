@@ -4,6 +4,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/api", () => ({
   getDiagnosis: vi.fn().mockResolvedValue({ document_signal_score: 72, signal_ratio: 0.68, redundancy_ratio: 0.2, evidence_coverage: 0.75, decision_completeness: 0.5, purpose: "DECIDE", audience: "leaders", gaps: ["OWNER"] }),
   getSemanticMap: vi.fn().mockResolvedValue({ slots: [{ id: "s1", slot: "FACT", text: "Revenue grew 20%.", provenance: { source_segment_id: "S-01" } }] }),
+  getDiff: vi.fn().mockResolvedValue({
+    document_id: "doc-1", analysis_run_id: "run-1", output_id: "out-clean", output_type: "clean_version", output_version: 2,
+    counts: { REMOVED: 0, MERGED: 0, EMPHASIZED: 1, HELD: 0 },
+    entries: [{ segment_id: "S-03", order_index: 0, original_text: "The original source sentence.", disposition: "EMPHASIZED", reason: "Carried into the output as its own section under 'Clean brief'.", rendered_headings: ["Clean brief"], provenance: { source_segment_id: "S-03" } }],
+  }),
   getOutputs: vi.fn().mockResolvedValue({
     document_id: "doc-1", analysis_run_id: "run-1", outputs: [
       { id: "out-clean", output_type: "clean_version", content: "", version: 2, audience: "Leadership", max_words: 120, render_config_hash: "7d94f1a84d2e", sections: [{ heading: "Clean brief", text: "The clean analysis text.", source_slot_ids: ["s1"], source_segment_ids: ["S-03"] }] },
