@@ -9,3 +9,4 @@ frontend/.next/
 *.sqlite3
 node_modules/
 .next/
+*.db
