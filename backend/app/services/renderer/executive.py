@@ -1,14 +1,16 @@
 from collections.abc import Sequence
 
-from app.services.renderer.base import ITEM_BUDGETS, RenderedDocument, make_section, select_by_importance, slot_value
+from app.services.renderer.base import ITEM_BUDGETS, RenderedDocument, make_section, slot_value
+from app.services.selection.hybrid import select_core
 
 HEADINGS = (("Conclusion", {"DECISION", "RECOMMENDATION"}), ("Evidence", {"EVIDENCE", "FACT"}), ("Risk and unknowns", {"RISK_UNKNOWN"}), ("Pending decision", {"OPTION", "TRADE_OFF"}))
 
 
-def render_executive_summary(slots: Sequence[object]) -> RenderedDocument:
+def render_executive_summary(slots: Sequence[object], segment_texts: dict[str, str] | None = None) -> RenderedDocument:
     # Ranked across the whole document first, so the budget is spent on the strongest
     # material rather than on whichever heading happens to come first.
-    kept = set(map(id, select_by_importance(slots, limit=ITEM_BUDGETS["executive_summary"])))
+    # These forms reorganize by purpose, so no outline coverage constraint applies.
+    kept = set(map(id, (item.slot for item in select_core(slots, segment_texts=segment_texts or {}, outline=None, budget=ITEM_BUDGETS["executive_summary"]))))
     shortlist = [slot for slot in slots if id(slot) in kept]
 
     sections = []

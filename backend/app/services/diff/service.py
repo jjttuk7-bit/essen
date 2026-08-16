@@ -2,6 +2,7 @@ from collections.abc import Sequence
 
 from app.services.diff.base import DiffEntry, DISPOSITIONS, EMPHASIZED, HELD, MERGED, REMOVED
 from app.services.renderer.clean import REMOVABLE_LABELS
+from app.services.selection.rules import classify_shape, score_passage
 
 REMOVED_HEADING = "Removed candidates"
 
@@ -31,6 +32,7 @@ def build_diff(
     segments: Sequence[object],
     quality_labels: Sequence[object] = (),
     provenance: Sequence[dict[str, object]] = (),
+    segment_texts: dict[str, str] | None = None,
 ) -> list[DiffEntry]:
     """Explain, per source segment, what the rendered output did with it and why."""
     sections = _surviving_sections(provenance)
@@ -51,29 +53,46 @@ def build_diff(
                 order_index=getattr(segment, "order_index"),
                 original_text=getattr(segment, "text"),
                 rendered_headings=tuple(heading for heading, _ in carrying),
-                **_disposition(carrying, removal_reasons.get(segment_id), segment_id in slot_segment_ids),
+                **_disposition(carrying, removal_reasons.get(segment_id), segment_id in slot_segment_ids, (segment_texts or {}).get(segment_id, getattr(segment, "text", ""))),
             )
         )
     return entries
+
+
+def _held_reason(segment_text: str, has_slot: bool) -> str:
+    """Name the ground the rule layer found, rather than reporting an absence.
+
+    "No semantic content was extracted" repeated down a page tells the reader nothing about
+    their document. The rules can say the passage is a table of contents, a flattened
+    table, or a generality — something a reader can check.
+    """
+    rule = score_passage(segment_text, classify_shape(segment_text))
+    grounds = [reason for reason in rule.reasons if reason != "본문 서술"]
+    if grounds:
+        return f"{', '.join(grounds)} — 핵심으로 선택되지 않음"
+    if has_slot:
+        return "핵심으로 선택되지 않음"
+    # Naming what the rules looked for lets the reader check the call; reporting an
+    # absence ("핵심 문장을 찾지 못함") gives them nothing to check.
+    return "지시·결론·주의·수치 근거가 없는 서술"
 
 
 def _disposition(
     carrying: list[tuple[str, set[str]]],
     removal_reason: str | None,
     has_slot: bool,
+    segment_text: str = "",
 ) -> dict[str, str]:
     """Read the disposition off what the output did, using labels only for wording."""
     if carrying:
         heading, segment_ids = carrying[0]
         if len(segment_ids) > 1:
             others = len(segment_ids) - 1
-            return {"disposition": MERGED, "reason": f"Combined with {others} other source segment{'s' if others > 1 else ''} under '{heading}'."}
-        return {"disposition": EMPHASIZED, "reason": f"Carried into the output as its own section under '{heading}'."}
+            return {"disposition": MERGED, "reason": f"'{heading}' 아래 다른 {others}개 문단과 함께 정리됨"}
+        return {"disposition": EMPHASIZED, "reason": f"'{heading}' 항목으로 그대로 유지됨"}
     if removal_reason:
         return {"disposition": REMOVED, "reason": removal_reason}
-    if has_slot:
-        return {"disposition": HELD, "reason": "Extracted content was not selected for this output."}
-    return {"disposition": HELD, "reason": "No semantic content was extracted from this segment."}
+    return {"disposition": HELD, "reason": _held_reason(segment_text, has_slot)}
 
 
 def count_dispositions(entries: Sequence[DiffEntry]) -> dict[str, int]:

@@ -1,7 +1,8 @@
 from collections.abc import Sequence
 
-from app.services.renderer.base import ITEM_BUDGETS, RenderedDocument, make_section, select_by_importance, slot_value
+from app.services.renderer.base import ITEM_BUDGETS, RenderedDocument, make_section, slot_value
 from app.services.renderer.outline import DocumentOutline
+from app.services.selection.hybrid import select_core
 
 REMOVABLE_LABELS = {"REDUNDANT", "GENERIC", "RHETORICAL", "UNSUPPORTED", "OFF_PURPOSE"}
 # Fallback grouping for sources that carry no headings of their own.
@@ -20,7 +21,7 @@ def _value(value: object) -> str:
     return getattr(value, "value", str(value))
 
 
-def render_clean_version(slots: Sequence[object], quality_labels: Sequence[object] = (), outline: DocumentOutline | None = None) -> RenderedDocument:
+def render_clean_version(slots: Sequence[object], quality_labels: Sequence[object] = (), outline: DocumentOutline | None = None, segment_texts: dict[str, str] | None = None) -> RenderedDocument:
     """The source document with the low-signal material taken out.
 
     When the source has headings of its own, the condensed document keeps them and their
@@ -30,7 +31,9 @@ def render_clean_version(slots: Sequence[object], quality_labels: Sequence[objec
     """
     removed_segment_ids = {getattr(label, "segment_id") for label in quality_labels if _value(getattr(label, "label")) in REMOVABLE_LABELS}
     kept_slots = [slot for slot in slots if getattr(slot, "source_segment_id", None) not in removed_segment_ids]
-    shortlist = select_by_importance(kept_slots, limit=ITEM_BUDGETS["clean_version"], preserve_order=True)
+    # The clean version is the same document made shorter, so selection carries the
+    # outline: every source section that has a candidate keeps at least one.
+    shortlist = [item.slot for item in select_core(kept_slots, segment_texts=segment_texts or {}, outline=outline, budget=ITEM_BUDGETS["clean_version"])]
 
     sections = _source_sections(shortlist, outline) if outline and outline.ordered_headings else _slot_type_sections(shortlist)
     return RenderedDocument(output_type="clean_version", sections=sections)

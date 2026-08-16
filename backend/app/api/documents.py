@@ -225,7 +225,9 @@ def render_document(document_id: str, request: RenderRequest | None = None, sess
     DiagnosisService().diagnose_document(session, document_id)
     slots = list(session.scalars(select(SemanticSlot).where(SemanticSlot.analysis_run_id == run.id)))
     labels = list(session.scalars(select(QualityLabel).where(QualityLabel.analysis_run_id == run.id)))
-    outline = build_outline(list(session.scalars(select(Segment).where(Segment.document_id == document.id).order_by(Segment.order_index))))
+    segments = list(session.scalars(select(Segment).where(Segment.document_id == document.id).order_by(Segment.order_index)))
+    outline = build_outline(segments)
+    segment_texts = {segment.id: segment.text for segment in segments}
     requested = request or RenderRequest()
     output_types = [requested.output_type] if requested.output_type else ["clean_version", "executive_summary", "action_decision_sheet"]
     outputs: list[RenderedOutput] = []
@@ -236,7 +238,7 @@ def render_document(document_id: str, request: RenderRequest | None = None, sess
             config_hash = hashlib.sha256(json.dumps(config, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
             output = session.scalar(select(RenderedOutput).where(RenderedOutput.analysis_run_id == run.id, RenderedOutput.output_type == output_type, RenderedOutput.render_config_hash == config_hash))
             if output is None:
-                rendered = renderer.render(output_type, slots, labels, requested.audience, requested.max_words, outline)
+                rendered = renderer.render(output_type, slots, labels, requested.audience, requested.max_words, outline, segment_texts)
                 provenance = [{"section_index": i, "heading": section.heading, "text": section.text, "source_slot_id": slot_id, "source_segment_id": segment_id} for i, section in enumerate(rendered.sections) for slot_id, segment_id in zip(section.source_slot_ids, section.source_segment_ids, strict=True)]
                 for _ in range(3):
                     version = (session.scalar(select(func.max(RenderedOutput.version)).where(RenderedOutput.analysis_run_id == run.id, RenderedOutput.output_type == output_type)) or 0) + 1
@@ -279,7 +281,7 @@ def get_diff(
         raise HTTPException(status_code=409, detail=f"Render the {output_type} output before requesting its diff")
     segments = list(session.scalars(select(Segment).where(Segment.document_id == document.id).order_by(Segment.order_index)))
     labels = list(session.scalars(select(QualityLabel).where(QualityLabel.analysis_run_id == run.id)))
-    entries = build_diff(segments, labels, output.provenance)
+    entries = build_diff(segments, labels, output.provenance, {segment.id: segment.text for segment in segments})
     return DiffResponse(
         document_id=document.id,
         analysis_run_id=run.id,

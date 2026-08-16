@@ -5,8 +5,9 @@ import pytest
 from app.services.renderer.service import RendererService, UnsupportedClaimError
 
 
-def slot(slot_id: str, slot_type: str, text: str) -> SimpleNamespace:
-    return SimpleNamespace(id=slot_id, source_segment_id=f"seg_{slot_id}", slot_type=SimpleNamespace(value=slot_type), normalized_text=text)
+def slot(slot_id: str, slot_type: str, text: str, importance: float = 0.8) -> SimpleNamespace:
+    """Every extracted slot carries an importance; selection weighs it against the rules."""
+    return SimpleNamespace(id=slot_id, source_segment_id=f"seg_{slot_id}", slot_type=SimpleNamespace(value=slot_type), normalized_text=text, importance=importance)
 
 
 def test_every_rendered_section_cites_existing_semantic_slots_and_segments() -> None:
@@ -32,8 +33,8 @@ def test_renderer_rejects_sections_without_slot_provenance() -> None:
 
 def test_clean_version_excludes_marked_content_from_the_document() -> None:
     """Removal reasons belong to the rewrite rationale, not to the document itself."""
-    retained = SimpleNamespace(id="slot_keep", source_segment_id="seg_keep", slot_type=SimpleNamespace(value="FACT"), normalized_text="Keep this fact.")
-    removed = SimpleNamespace(id="slot_remove", source_segment_id="seg_remove", slot_type=SimpleNamespace(value="FACT"), normalized_text="Duplicate fact.")
+    retained = slot("keep", "FACT", "Keep this fact.")
+    removed = slot("remove", "FACT", "Duplicate fact.")
     label = SimpleNamespace(segment_id="seg_remove", label=SimpleNamespace(value="REDUNDANT"), reason="Same meaning as seg_keep")
 
     output = RendererService().render("clean_version", [retained, removed], quality_labels=[label])

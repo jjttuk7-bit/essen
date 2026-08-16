@@ -46,7 +46,7 @@ def test_segments_sharing_one_section_are_merged() -> None:
     entries = build_diff(segments, [], provenance)
 
     assert [entry.disposition for entry in entries] == ["MERGED", "MERGED"]
-    assert "1 other" in entries[0].reason
+    assert "다른 1개 문단" in entries[0].reason
 
 
 def test_a_segment_with_a_removable_label_is_removed_with_its_reason() -> None:
@@ -66,7 +66,7 @@ def test_an_unrendered_segment_without_a_removal_reason_is_held() -> None:
     entries = build_diff(segments, [], [])
 
     assert entries[0].disposition == "HELD"
-    assert "not selected" in entries[0].reason or "No semantic" in entries[0].reason
+    assert entries[0].reason == "지시·결론·주의·수치 근거가 없는 서술"
 
 
 def test_a_rendered_segment_keeps_its_output_disposition_over_a_stale_label() -> None:
@@ -96,3 +96,52 @@ def test_entries_follow_original_document_order() -> None:
     entries = build_diff(segments, [], [])
 
     assert [entry.segment_id for entry in entries] == ["segment-1", "segment-2"]
+
+
+def test_a_dropped_segment_explains_itself_with_a_rule_reason() -> None:
+    """"No semantic content" tells the reader nothing; the rule layer can name the ground."""
+    segments = [FakeSegment("segment-1", 0, "일반적으로 데이터 품질은 매우 중요하다.")]
+
+    entries = build_diff(segments, [], [], segment_texts={"segment-1": "일반적으로 데이터 품질은 매우 중요하다."})
+
+    assert entries[0].disposition == "HELD"
+    assert "일반론 표현" in entries[0].reason
+
+
+def test_a_table_of_contents_segment_says_so() -> None:
+    toc = "목차\nPART 1 개요\nPART 2 절차\nPART 3 검증"
+    entries = build_diff([FakeSegment("segment-1", 0, toc)], [], [], segment_texts={"segment-1": toc})
+
+    assert "목차" in entries[0].reason
+
+
+def test_a_flattened_table_says_so() -> None:
+    table = "축\n진단 질문\n흔한 문제\n일관성\n정확성"
+    entries = build_diff([FakeSegment("segment-1", 0, table)], [], [], segment_texts={"segment-1": table})
+
+    assert "표 조각" in entries[0].reason
+
+
+def test_a_removal_label_still_wins_over_the_rule_reason() -> None:
+    """A recorded removal decision is more specific than a generic shape reason."""
+    segments = [FakeSegment("segment-1", 0, "일반적으로 중요하다.")]
+    labels = [FakeLabel("segment-1", "REDUNDANT", "앞 문단과 같은 의미입니다.")]
+
+    entries = build_diff(segments, labels, [], segment_texts={"segment-1": "일반적으로 중요하다."})
+
+    assert entries[0].disposition == "REMOVED"
+    assert entries[0].reason == "앞 문단과 같은 의미입니다."
+
+
+def test_without_segment_texts_the_reason_still_exists() -> None:
+    entries = build_diff([FakeSegment("segment-1", 0, "본문입니다.")], [], [])
+
+    assert entries[0].reason
+
+
+def test_plain_prose_says_which_signals_were_missing() -> None:
+    """An absence the reader cannot check is not a reason; name what was looked for."""
+    prose = "이 절에서는 배경을 설명하고 있다."
+    entries = build_diff([FakeSegment("segment-1", 0, prose)], [], [], segment_texts={"segment-1": prose})
+
+    assert entries[0].reason == "지시·결론·주의·수치 근거가 없는 서술"

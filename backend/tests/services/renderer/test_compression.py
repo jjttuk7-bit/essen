@@ -15,7 +15,8 @@ class FakeSlot:
 
 
 def _slots(count: int, slot_type: str = "FACT") -> list[FakeSlot]:
-    return [FakeSlot(index, slot_type, importance=index / count) for index in range(count)]
+    # Ranked but never zero: a slot the model gave no weight at all is a different case.
+    return [FakeSlot(index, slot_type, importance=(index + 1) / count) for index in range(count)]
 
 
 def _item_count(document) -> int:
