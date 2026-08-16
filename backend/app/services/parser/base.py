@@ -36,7 +36,9 @@ class SourceParser(Protocol):
 
 
 def normalize_text(text: str) -> str:
-    return text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    # PDF extraction can emit NUL characters, which PostgreSQL rejects in text literals.
+    # SQLite accepts them, so this only surfaces once a deployment points at Postgres.
+    return text.replace("\x00", "").replace("\r\n", "\n").replace("\r", "\n").strip()
 
 
 def segments_for_text(text: str, *, page: int | None = None, start_paragraph: int = 1) -> list[ParsedSegment]:
