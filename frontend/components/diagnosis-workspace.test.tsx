@@ -6,7 +6,7 @@ vi.mock("@/lib/api", () => ({
   getSemanticMap: vi.fn().mockResolvedValue({ slots: [{ id: "s1", slot: "FACT", text: "Revenue grew 20%.", provenance: { source_segment_id: "S-01" } }] }),
   getOutputs: vi.fn().mockResolvedValue({
     document_id: "doc-1", analysis_run_id: "run-1", outputs: [
-      { id: "out-clean", output_type: "clean_version", content: "", version: 1, audience: null, max_words: null, render_config_hash: "hash", sections: [{ heading: "Clean brief", text: "The clean analysis text.", source_slot_ids: ["s1"], source_segment_ids: ["S-03"] }] },
+      { id: "out-clean", output_type: "clean_version", content: "", version: 2, audience: "Leadership", max_words: 120, render_config_hash: "7d94f1a84d2e", sections: [{ heading: "Clean brief", text: "The clean analysis text.", source_slot_ids: ["s1"], source_segment_ids: ["S-03"] }] },
       { id: "out-exec", output_type: "executive_summary", content: "", version: 1, audience: null, max_words: null, render_config_hash: "hash", sections: [{ heading: "Executive brief", text: "The executive analysis text.", source_slot_ids: [], source_segment_ids: ["S-05"] }] },
       { id: "out-action", output_type: "action_decision_sheet", content: "", version: 1, audience: null, max_words: null, render_config_hash: "hash", sections: [{ heading: "Action plan", text: "The action output text.", source_slot_ids: [], source_segment_ids: ["S-09"] }] },
     ],
@@ -32,6 +32,10 @@ describe("DiagnosisWorkspace", () => {
     expect(screen.getByRole("tab", { name: "Clean brief" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("The clean analysis text.")).toBeVisible();
     expect(screen.getByText("Source S-03")).toBeVisible();
+    expect(screen.getByText("Version 2")).toBeVisible();
+    expect(screen.getByText("Audience Leadership")).toBeVisible();
+    expect(screen.getByText("120 words")).toBeVisible();
+    expect(screen.getByText("Config 7d94f1a8")).toBeVisible();
 
     fireEvent.click(screen.getByRole("tab", { name: "Action plan" }));
 
@@ -43,9 +47,7 @@ describe("DiagnosisWorkspace", () => {
     render(<DiagnosisWorkspace documentId="doc-1" />);
     const cleanTab = await screen.findByRole("tab", { name: "Clean brief" });
     cleanTab.focus();
-
     fireEvent.keyDown(cleanTab, { key: "ArrowRight" });
-
     expect(screen.getByRole("tab", { name: "Executive brief" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Executive brief" })).toHaveFocus();
   });

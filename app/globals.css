@@ -75,3 +75,6 @@ a { color: inherit; }
 
 @media (max-width: 860px) { .result-summary, .decision-grid { grid-template-columns: 1fr; }.readiness-meta { max-width: none; }.evidence-ledger { order: 2; } }
 @media (max-width: 560px) { .result-shell { padding-inline: 1rem; }.result-head { align-items: flex-start; flex-direction: column; gap: .4rem; }.score-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.workspace-title-row { align-items: flex-start; flex-direction: column; }.segmented-control { justify-content: flex-start; }.brief-panel { padding-inline: 1rem; }.brief-section { grid-template-columns: 1.5rem minmax(0, 1fr); gap: .65rem; }.evidence-ledger { padding-inline: 1rem; } }
+.audit-metadata { display: flex; flex-wrap: wrap; gap: .35rem .75rem; padding-block: .85rem; border-block-end: 1px solid var(--hairline); color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .7rem; font-variant-numeric: tabular-nums; }
+.audit-metadata span + span { padding-inline-start: .75rem; border-inline-start: 1px solid var(--hairline); }
+@media (max-width: 560px) { .audit-metadata { gap: .45rem; }.audit-metadata span + span { padding-inline-start: 0; border-inline-start: 0; } }
