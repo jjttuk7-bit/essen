@@ -20,7 +20,12 @@ DIRECTIVE = re.compile(r"(하라|해야\s|해야한다|하지\s*(말|않)|반드
 CONCLUSION = re.compile(r"(따라서|결국|요컨대|결론적으로|핵심은|즉,|정리하면)")
 CAUSAL = re.compile(r"(때문에|로\s*인해|그래서|덕분에|탓에)")
 WARNING = re.compile(r"(주의|위험|흔한\s*(실수|오류)|함정|착각|오인|왜곡|틀렸)")
-FIGURES = re.compile(r"(\d+\s*(%|%p|퍼센트|개월|주|일|년|명|건|회|배|위|점)|\d{4}년|\d+\.\d+|\b\d{2,}\b)")
+# A figure counts as evidence only when it measures something. Bare numbers are version
+# labels, section numbers and page numbers, which say nothing about the content.
+FIGURES = re.compile(r"\d+\s*(%p|%|퍼센트|개월|주일|주|일|년|개월|명|건|회|배|위|점|원|만|억|시간|분|초|배수|퍼센트포인트)")
+# An interrogative asks the reader something; it does not instruct them.
+INTERROGATIVE = re.compile(r"(\?|는가|은가|ㄴ가|나요|까\??)\s*[”\"']?\s*$")
+NUMBERED_HEADING = re.compile(r"^\d+(\.\d+)+\s+\S")
 GENERIC = re.compile(r"(일반적으로|대체로|흔히|매우\s*중요|아주\s*중요|중요하다|다양한|여러\s*가지|바람직하|노력해야|최선을\s*다|in general|overall|best practice)")
 
 TOC_MARKER = re.compile(r"(PART|CHAPTER)\s*\d+", re.IGNORECASE)
@@ -76,14 +81,18 @@ def score_passage(passage: str, shape: Shape) -> RuleScore:
     if not text:
         return RuleScore(0.0, ("내용 없음",))
 
+    if NUMBERED_HEADING.match(text):
+        return RuleScore(round(min(SHAPE_BASE[shape.value], 0.1), 4), ("절 제목",))
+
+    is_question = bool(INTERROGATIVE.search(text))
     for pattern, weight, reason in (
-        (DIRECTIVE, 0.30, "실행 지시"),
+        (DIRECTIVE, 0.0 if is_question else 0.30, "실행 지시"),
         (CONCLUSION, 0.20, "결론 표지"),
         (WARNING, 0.20, "주의·위험"),
         (CAUSAL, 0.10, "인과 설명"),
         (FIGURES, 0.15, "수치 근거"),
     ):
-        if pattern.search(text):
+        if weight and pattern.search(text):
             score += weight
             reasons.append(reason)
 

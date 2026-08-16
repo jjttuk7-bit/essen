@@ -104,3 +104,41 @@ class TestContract:
 
     def test_scoring_is_reproducible(self) -> None:
         assert score_passage(BODY, Shape.BODY) == score_passage(BODY, Shape.BODY)
+
+
+class TestFalsePositivesFoundInRealDocuments:
+    """Each case scored high on the source playbook while carrying no essential content."""
+
+    def test_a_version_number_is_not_evidence(self) -> None:
+        result = score_passage("V1.0이 “어떤 순서로 생각해야 하는가”를 다뤘다면, V2는 실행을 다룬다.", Shape.BODY)
+
+        assert "수치 근거" not in result.reasons
+
+    def test_a_section_number_is_not_evidence(self) -> None:
+        result = score_passage("3.3 흔한 실수 세 가지", Shape.BODY)
+
+        assert "수치 근거" not in result.reasons
+
+    def test_a_numbered_heading_scores_low(self) -> None:
+        assert score_passage("3.3 흔한 실수 세 가지", Shape.BODY).score < 0.3
+
+    def test_a_question_is_not_a_directive(self) -> None:
+        """A prompt asks the reader something; it does not tell them to do anything."""
+        result = score_passage("그래서 무엇을 선택해야 하는가?", Shape.BODY)
+
+        assert "실행 지시" not in result.reasons
+
+    def test_an_interrogative_ending_is_not_a_directive(self) -> None:
+        result = score_passage("이 데이터를 믿고 써도 되는가", Shape.BODY)
+
+        assert "실행 지시" not in result.reasons
+
+    def test_a_real_measurement_is_still_evidence(self) -> None:
+        result = score_passage("결측·오류 시설은 전체의 6% 수준으로, 별도로 표시해 분석에서 제외한다.", Shape.BODY)
+
+        assert "수치 근거" in result.reasons
+
+    def test_a_real_directive_still_scores(self) -> None:
+        result = score_passage("새 데이터를 받으면 연 직후 10분 안에 아래 항목부터 확인한다.", Shape.BODY)
+
+        assert "실행 지시" in result.reasons
