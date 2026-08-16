@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.analysis import AnalysisRun, AnalysisStatus, Relation, SemanticSlot
 from app.models.document import Document, DocumentPurpose
 from app.schemas.llm import AnalysisRequest, SourceSegment
-from app.schemas.semantic import validate_analysis_source_context
+from app.schemas.semantic import keep_verbatim_slots, validate_analysis_source_context
 from app.services.llm.base import LLMAdapter
 from app.services.semantic.relations import build_documented_relations
 
@@ -53,6 +53,8 @@ class SemanticExtractionService:
             segments=[SourceSegment(id=segment.id, text=segment.text) for segment in document.segments],
         )
         analysis = validate_analysis_source_context(self.adapter.analyze(request), {segment.id for segment in request.segments})
+        # The output is the source document's core, so anything the source does not say is discarded.
+        analysis = keep_verbatim_slots(analysis, {segment.id: segment.text for segment in request.segments})
         run = AnalysisRun(document_id=document.id, run_type="semantic_extraction", status=AnalysisStatus.PENDING,
                           llm_backed=True, prompt_version=self.prompt_version, raw_model_output=analysis.model_dump_json())
         document.purpose = purpose
