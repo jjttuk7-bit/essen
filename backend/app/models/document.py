@@ -14,6 +14,8 @@ class SourceType(str, Enum):
     MARKDOWN = "markdown"
     PDF = "pdf"
     DOCX = "docx"
+    HWPX = "hwpx"
+    HWP = "hwp"
 
 
 class DocumentPurpose(str, Enum):
