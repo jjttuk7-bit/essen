@@ -13,6 +13,7 @@ class SourceType(str, Enum):
     TEXT = "text"
     MARKDOWN = "markdown"
     PDF = "pdf"
+    DOCX = "docx"
 
 
 class DocumentPurpose(str, Enum):

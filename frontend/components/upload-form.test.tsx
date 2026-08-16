@@ -10,7 +10,7 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 function selectTextFile() { fireEvent.change(screen.getByLabelText(/분석할 문서/i), { target: { files: [new File(["brief"], "brief.txt", { type: "text/plain" })] } }); }
 
 describe("UploadForm", () => {
-  it("offers a labeled document picker and an analysis action", () => { render(<UploadForm />); expect(screen.getByLabelText(/분석할 문서/i)).toHaveAttribute("accept", ".txt,.md,.markdown,.pdf"); expect(screen.getByRole("button", { name: /analyze document/i })).toBeVisible(); });
+  it("offers a labeled document picker and an analysis action", () => { render(<UploadForm />); expect(screen.getByLabelText(/분석할 문서/i)).toHaveAttribute("accept", ".txt,.md,.markdown,.pdf,.docx"); expect(screen.getByRole("button", { name: /analyze document/i })).toBeVisible(); });
   it("uploads, analyzes, renders, then navigates to the result workspace", async () => {
     uploadDocument.mockResolvedValue({ document_id: "doc-1" }); analyzeDocument.mockResolvedValue({}); renderDocument.mockResolvedValue({}); render(<UploadForm />); selectTextFile(); fireEvent.click(screen.getByRole("button", { name: /analyze document/i }));
     expect(await screen.findByText("검토용 출력을 생성하고 있습니다…")).toHaveAttribute("aria-live", "polite");

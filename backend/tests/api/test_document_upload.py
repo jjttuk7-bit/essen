@@ -151,3 +151,32 @@ def test_an_ordinary_document_is_still_accepted() -> None:
     response = _upload_client().post("/documents", files={"file": ("minutes.txt", minutes.encode(), "text/plain")})
 
     assert response.status_code == 201
+
+
+def _minimal_docx(*paragraphs: str) -> bytes:
+    import io, zipfile
+    w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    body = "".join(f"<w:p><w:r><w:t>{text}</w:t></w:r></w:p>" for text in paragraphs)
+    document = f'<?xml version="1.0"?><w:document xmlns:w="{w}"><w:body>{body}</w:body></w:document>'
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("[Content_Types].xml", "<Types/>")
+        archive.writestr("word/document.xml", document)
+    return buffer.getvalue()
+
+
+def test_a_word_document_is_accepted() -> None:
+    content = _minimal_docx("결합 직후에는 행 수를 로그로 남긴다.", "이 확인 없이 다음 단계로 넘어가지 않는다.")
+
+    response = _upload_client().post("/documents", files={"file": ("plan.docx", content, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")})
+
+    assert response.status_code == 201
+    assert response.json()["source_type"] == "docx"
+    assert response.json()["segment_count"] == 2
+
+
+def test_the_unsupported_type_message_lists_word() -> None:
+    response = _upload_client().post("/documents", files={"file": ("sheet.xlsx", b"binary", "application/vnd.ms-excel")})
+
+    assert response.status_code == 422
+    assert "DOCX" in response.json()["detail"]
