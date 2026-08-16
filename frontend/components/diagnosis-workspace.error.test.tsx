@@ -1,48 +1,52 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { getDiagnosis, getSemanticMap, getOutputs, getDiff } = vi.hoisted(() => ({ getDiagnosis: vi.fn(), getSemanticMap: vi.fn(), getOutputs: vi.fn(), getDiff: vi.fn() }));
-vi.mock("@/lib/api", () => ({ getDiagnosis, getSemanticMap, getOutputs, getDiff }));
+const { getOutputs, getDiff } = vi.hoisted(() => ({ getOutputs: vi.fn(), getDiff: vi.fn() }));
+vi.mock("@/lib/api", () => ({ getOutputs, getDiff }));
+
 import { DiagnosisWorkspace } from "./diagnosis-workspace";
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("DiagnosisWorkspace failures", () => {
-  it("keeps an accessible loading status while results are pending", () => {
-    getDiagnosis.mockReturnValue(new Promise(() => {}));
-    getSemanticMap.mockReturnValue(new Promise(() => {}));
+  it("keeps an accessible loading status while the document is pending", () => {
     getOutputs.mockReturnValue(new Promise(() => {}));
+    getDiff.mockReturnValue(new Promise(() => {}));
+
     render(<DiagnosisWorkspace documentId="doc-1" />);
-    expect(screen.getByText(/불러오는 중/)).toHaveAttribute("aria-live", "polite");
+
+    expect(screen.getByText(/정리하는 중/)).toHaveAttribute("aria-live", "polite");
   });
 
-  it.each(["Document not found", "Document has no completed analysis", "Semantic map unavailable", "Outputs unavailable"])("shows a request error: %s", async (message) => {
-    getDiagnosis.mockRejectedValue(new Error(message));
-    getSemanticMap.mockRejectedValue(new Error(message));
+  it.each(["Document not found", "Document has no completed analysis"])("shows a request error: %s", async (message) => {
     getOutputs.mockRejectedValue(new Error(message));
+    getDiff.mockRejectedValue(new Error(message));
+
     render(<DiagnosisWorkspace documentId="doc-1" />);
+
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
   });
-});
 
-  it("keeps the diagnosis visible when no rendered outputs exist", async () => {
-    getDiagnosis.mockResolvedValue({ document_signal_score: 72, signal_ratio: 0.68, redundancy_ratio: 0.2, evidence_coverage: 0.75, decision_completeness: 0.5, gaps: ["OWNER"] });
-    getSemanticMap.mockResolvedValue({ slots: [{ id: "s1", slot: "FACT", text: "Revenue grew 20%." }] });
+  it("says so plainly when nothing was rendered", async () => {
     getOutputs.mockResolvedValue({ document_id: "doc-1", analysis_run_id: "run-1", outputs: [] });
+    getDiff.mockRejectedValue(new Error("no output"));
 
     render(<DiagnosisWorkspace documentId="doc-1" />);
 
-    expect(await screen.findByText("72")).toBeVisible();
-    expect(screen.getByRole("status")).toHaveTextContent("아직 생성된 검토용 출력은 없습니다.");
-    expect(screen.getByText("Revenue grew 20%.")).toBeVisible();
+    expect(await screen.findByRole("status")).toHaveTextContent("정리된 문서가 아직 없습니다.");
   });
 
-  it("shows an alert when only the output request fails", async () => {
-    getDiagnosis.mockResolvedValue({ document_signal_score: 72, signal_ratio: 0.68, redundancy_ratio: 0.2, evidence_coverage: 0.75, decision_completeness: 0.5, gaps: [] });
-    getSemanticMap.mockResolvedValue({ slots: [] });
-    getOutputs.mockRejectedValue(new Error("Outputs unavailable"));
+  it("still shows the document when the rationale cannot be loaded", async () => {
+    getOutputs.mockResolvedValue({
+      document_id: "doc-1", analysis_run_id: "run-1", outputs: [
+        { id: "out-clean", output_type: "clean_version", content: "", version: 1, audience: null, max_words: null, render_config_hash: "h", sections: [{ heading: "Decision", text: "Launch the pilot.", source_slot_ids: ["s1"], source_segment_ids: ["S-01"] }] },
+      ],
+    });
+    getDiff.mockRejectedValue(new Error("diff unavailable"));
 
     render(<DiagnosisWorkspace documentId="doc-1" />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Outputs unavailable");
+    expect(await screen.findByText("Launch the pilot.")).toBeVisible();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
+});

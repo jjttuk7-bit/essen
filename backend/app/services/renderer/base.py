@@ -34,12 +34,17 @@ def slot_value(slot: object) -> str:
 
 
 def make_section(heading: str, slots: Iterable[object]) -> RenderedSection | None:
+    """One line per slot, index-aligned with the source id lists.
+
+    Readers need discrete items rather than one run-on paragraph, and keeping exactly one
+    line per slot lets a line be traced back to the slot and segment at the same index.
+    """
     selected = list(slots)
     if not selected:
         return None
     return RenderedSection(
         heading=heading,
-        text=" ".join(getattr(slot, "normalized_text") for slot in selected),
+        text="\n".join(" ".join(getattr(slot, "normalized_text").split()) for slot in selected),
         source_slot_ids=[getattr(slot, "id") for slot in selected],
         source_segment_ids=[getattr(slot, "source_segment_id") for slot in selected],
     )

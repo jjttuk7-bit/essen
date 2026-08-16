@@ -1,59 +1,85 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/api", () => ({
-  getDiagnosis: vi.fn().mockResolvedValue({ document_signal_score: 72, signal_ratio: 0.68, redundancy_ratio: 0.2, evidence_coverage: 0.75, decision_completeness: 0.5, purpose: "DECIDE", audience: "leaders", gaps: ["OWNER"] }),
-  getSemanticMap: vi.fn().mockResolvedValue({ slots: [{ id: "s1", slot: "FACT", text: "Revenue grew 20%.", provenance: { source_segment_id: "S-01" } }] }),
-  getDiff: vi.fn().mockResolvedValue({
-    document_id: "doc-1", analysis_run_id: "run-1", output_id: "out-clean", output_type: "clean_version", output_version: 2,
-    counts: { REMOVED: 0, MERGED: 0, EMPHASIZED: 1, HELD: 0 },
-    entries: [{ segment_id: "S-03", order_index: 0, original_text: "The original source sentence.", disposition: "EMPHASIZED", reason: "Carried into the output as its own section under 'Clean brief'.", rendered_headings: ["Clean brief"], provenance: { source_segment_id: "S-03" } }],
-  }),
-  getOutputs: vi.fn().mockResolvedValue({
-    document_id: "doc-1", analysis_run_id: "run-1", outputs: [
-      { id: "out-clean", output_type: "clean_version", content: "", version: 2, audience: "Leadership", max_words: 120, render_config_hash: "7d94f1a84d2e", sections: [{ heading: "Clean brief", text: "The clean analysis text.", source_slot_ids: ["s1"], source_segment_ids: ["S-03"] }] },
-      { id: "out-exec", output_type: "executive_summary", content: "", version: 1, audience: null, max_words: null, render_config_hash: "hash", sections: [{ heading: "Executive brief", text: "The executive analysis text.", source_slot_ids: [], source_segment_ids: ["S-05"] }] },
-      { id: "out-action", output_type: "action_decision_sheet", content: "", version: 1, audience: null, max_words: null, render_config_hash: "hash", sections: [{ heading: "Action plan", text: "The action output text.", source_slot_ids: [], source_segment_ids: ["S-09"] }] },
-    ],
-  }),
-}));
+const { getOutputs, getDiff } = vi.hoisted(() => ({ getOutputs: vi.fn(), getDiff: vi.fn() }));
+vi.mock("@/lib/api", () => ({ getOutputs, getDiff }));
 
 import { DiagnosisWorkspace } from "./diagnosis-workspace";
 
-afterEach(() => cleanup());
+const outputs = {
+  document_id: "doc-1", analysis_run_id: "run-1", outputs: [
+    { id: "out-clean", output_type: "clean_version", content: "", version: 2, audience: null, max_words: null, render_config_hash: "hash", sections: [
+      { heading: "Decision", text: "Launch the pilot in Q3.\nKim owns delivery.", source_slot_ids: ["s1", "s2"], source_segment_ids: ["S-01", "S-02"] },
+    ] },
+    { id: "out-action", output_type: "action_decision_sheet", content: "", version: 1, audience: null, max_words: null, render_config_hash: "hash", sections: [
+      { heading: "Actions", text: "Deploy by Friday.", source_slot_ids: ["s3"], source_segment_ids: ["S-03"] },
+    ] },
+  ],
+};
+
+const diff = {
+  document_id: "doc-1", analysis_run_id: "run-1", output_id: "out-clean", output_type: "clean_version", output_version: 2,
+  counts: { REMOVED: 1, MERGED: 1, EMPHASIZED: 1, HELD: 1 },
+  entries: [
+    { segment_id: "S-01", order_index: 0, original_text: "Decision: launch the pilot.", disposition: "EMPHASIZED", reason: "Carried into the output as its own section under 'Decision'.", rendered_headings: ["Decision"], provenance: { source_segment_id: "S-01" } },
+    { segment_id: "S-02", order_index: 1, original_text: "Kim owns delivery.", disposition: "MERGED", reason: "Combined with 1 other source segment under 'Decision'.", rendered_headings: ["Decision"], provenance: { source_segment_id: "S-02" } },
+    { segment_id: "S-03", order_index: 2, original_text: "As we all know, quality matters.", disposition: "REMOVED", reason: "States a general truth without document-specific content.", rendered_headings: [], provenance: { source_segment_id: "S-03" } },
+    { segment_id: "S-04", order_index: 3, original_text: "Table of contents.", disposition: "HELD", reason: "No semantic content was extracted from this segment.", rendered_headings: [], provenance: { source_segment_id: "S-04" } },
+  ],
+};
+
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("DiagnosisWorkspace", () => {
-  it("shows the document score and extracted semantic evidence", async () => {
+  it("presents the rewritten document as discrete items rather than one paragraph", async () => {
+    getOutputs.mockResolvedValue(outputs);
+    getDiff.mockResolvedValue(diff);
+
     render(<DiagnosisWorkspace documentId="doc-1" />);
-    expect(await screen.findByText("72")).toBeVisible();
-    expect(screen.getByText("Revenue grew 20%.")).toBeVisible();
-    expect(screen.getByText("Source S-01")).toBeVisible();
-    expect(screen.getByText("OWNER")).toBeVisible();
+
+    const items = await screen.findAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("Launch the pilot in Q3.");
+    expect(items[1]).toHaveTextContent("Kim owns delivery.");
   });
 
-  it("maps backend output types to clear labels and switches the active mode", async () => {
+  it("does not show analysis machinery on the document page", async () => {
+    getOutputs.mockResolvedValue(outputs);
+    getDiff.mockResolvedValue(diff);
+
     render(<DiagnosisWorkspace documentId="doc-1" />);
-    expect(await screen.findByRole("tablist", { name: /output mode/i })).toBeVisible();
-    expect(screen.getByRole("tab", { name: "Clean brief" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("The clean analysis text.")).toBeVisible();
-    expect(screen.getByText("Source S-03")).toBeVisible();
-    expect(screen.getByText("Version 2")).toBeVisible();
-    expect(screen.getByText("Audience Leadership")).toBeVisible();
-    expect(screen.getByText("120 words")).toBeVisible();
-    expect(screen.getByText("Config 7d94f1a8")).toBeVisible();
+    await screen.findByText("Launch the pilot in Q3.");
 
-    fireEvent.click(screen.getByRole("tab", { name: "Action plan" }));
-
-    expect(screen.getByRole("tab", { name: "Action plan" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("The action output text.")).toBeVisible();
+    expect(screen.queryByText(/Source S-01/)).toBeNull();
+    expect(screen.queryByText(/Slot s1/)).toBeNull();
+    expect(screen.queryByText(/EVIDENCE LEDGER/i)).toBeNull();
+    expect(screen.queryByText(/Config/)).toBeNull();
   });
 
-  it("changes the active output with ArrowRight", async () => {
+  it("switches between the document forms", async () => {
+    getOutputs.mockResolvedValue(outputs);
+    getDiff.mockResolvedValue(diff);
+
     render(<DiagnosisWorkspace documentId="doc-1" />);
-    const cleanTab = await screen.findByRole("tab", { name: "Clean brief" });
-    cleanTab.focus();
-    fireEvent.keyDown(cleanTab, { key: "ArrowRight" });
-    expect(screen.getByRole("tab", { name: "Executive brief" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: "Executive brief" })).toHaveFocus();
+    expect(await screen.findByRole("tab", { name: "정리본" })).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.click(screen.getByRole("tab", { name: "실행안" }));
+
+    expect(screen.getByText("Deploy by Friday.")).toBeVisible();
+    expect(getDiff).toHaveBeenCalledWith("doc-1", "action_decision_sheet");
+  });
+
+  it("gives one reason the document was rewritten, with details on request", async () => {
+    getOutputs.mockResolvedValue(outputs);
+    getDiff.mockResolvedValue(diff);
+
+    render(<DiagnosisWorkspace documentId="doc-1" />);
+    const rationale = await screen.findByRole("region", { name: "이 문서를 다시 만든 이유" });
+
+    expect(rationale).toHaveTextContent("원문 4개 문단 중 2개를 남기고 2개를 덜어냈습니다. 원문의 50%입니다.");
+    expect(within(rationale).queryByText(/States a general truth/)).toBeNull();
+
+    fireEvent.click(within(rationale).getByRole("button", { name: /근거 보기/ }));
+
+    expect(within(rationale).getByText(/States a general truth/)).toBeVisible();
   });
 });

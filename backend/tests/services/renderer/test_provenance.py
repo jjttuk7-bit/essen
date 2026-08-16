@@ -52,3 +52,36 @@ def test_renderer_applies_requested_audience_and_word_limit() -> None:
 
     assert output.sections[0].heading.startswith("CEO:")
     assert len(output.sections[0].text.split()) == 3
+
+
+def test_section_lines_align_one_to_one_with_their_source_ids() -> None:
+    """The reader needs discrete items, and each line must stay traceable to its slot."""
+    from app.services.renderer.base import make_section
+
+    class FakeSlot:
+        def __init__(self, id, text, segment_id):
+            self.id = id
+            self.normalized_text = text
+            self.source_segment_id = segment_id
+
+    section = make_section("Decision", [
+        FakeSlot("slot-1", "Launch the pilot in Q3.", "segment-1"),
+        FakeSlot("slot-2", "Kim owns delivery.", "segment-2"),
+    ])
+
+    lines = section.text.split("\n")
+    assert lines == ["Launch the pilot in Q3.", "Kim owns delivery."]
+    assert len(lines) == len(section.source_slot_ids) == len(section.source_segment_ids)
+
+
+def test_a_multi_line_slot_stays_on_one_line_so_alignment_holds() -> None:
+    from app.services.renderer.base import make_section
+
+    class FakeSlot:
+        id = "slot-1"
+        normalized_text = "First half.\nSecond half."
+        source_segment_id = "segment-1"
+
+    section = make_section("Decision", [FakeSlot()])
+
+    assert section.text.split("\n") == ["First half. Second half."]

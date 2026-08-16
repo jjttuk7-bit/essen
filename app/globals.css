@@ -95,3 +95,28 @@ a { color: inherit; }
 .diff-held .diff-badge, .diff-count.diff-held { border: 1px solid #ece0cd; background: #fbf3e7; color: var(--warning); }
 .diff-removed .diff-original { text-decoration: line-through; text-decoration-color: #d9a9a3; color: var(--muted); }
 @media (max-width: 560px) { .diff-panel { padding-inline: 1rem; }.diff-counts { justify-content: flex-start; }.diff-entry { grid-template-columns: 1.5rem minmax(0, 1fr); gap: .65rem; } }
+
+/* --- Document-first result page --- */
+.doc-shell { min-height: 100vh; max-width: 46rem; margin: 0 auto; padding: 1.25rem clamp(1rem, 4vw, 2rem) 4rem; }
+.doc-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding-block-end: 1rem; border-block-end: 1px solid var(--hairline); }
+.doc-head a { color: var(--muted); font-size: .85rem; text-decoration: none; }
+.doc-head a:hover { color: var(--ink); }
+.doc-body { padding-block-start: 2.25rem; }
+.doc-body h1 { margin: 0 0 2rem; font-size: clamp(1.6rem, 3vw, 2.1rem); letter-spacing: -.03em; }
+.doc-section { margin-block-end: 2.25rem; }
+.doc-section h2 { margin: 0 0 .85rem; font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--signal); }
+.doc-section ul { margin: 0; padding: 0; list-style: none; }
+.doc-section li { position: relative; padding-inline-start: 1.1rem; margin-block-end: .8rem; color: #26333d; line-height: 1.75; }
+.doc-section li::before { content: ""; position: absolute; inset-inline-start: 0; inset-block-start: .68rem; width: .32rem; height: .32rem; border-radius: 50%; background: var(--signal); }
+.rationale { margin-block-start: 3rem; padding-block-start: 1.5rem; border-block-start: 1px solid var(--hairline); }
+.rationale h2 { margin: 0; font-size: .95rem; letter-spacing: -.015em; }
+.rationale-summary { margin: .5rem 0 0; color: var(--muted); line-height: 1.7; }
+.rationale-toggle { margin-block-start: .85rem; padding: .4rem .7rem; border: 1px solid var(--hairline); border-radius: .35rem; background: var(--surface); color: var(--muted); font-size: .8rem; cursor: pointer; }
+.rationale-toggle:hover, .rationale-toggle:focus-visible { color: var(--ink); border-color: #cfd8de; }
+.rationale-list, .rationale-reasons { list-style: none; margin: 1.25rem 0 0; padding: 0; }
+.rationale-group { display: flex; align-items: center; gap: .5rem; margin: 0 0 .6rem; color: var(--muted); font-size: .8rem; }
+.rationale-reasons { margin-block: 0 1.5rem; }
+.rationale-reasons li { display: grid; gap: .15rem; padding-block: .5rem; border-block-start: 1px solid var(--hairline); font-size: .82rem; }
+.rationale-quote { color: #3a4750; }
+.rationale-why { color: var(--muted); }
+@media (max-width: 560px) { .doc-shell { padding-inline: 1rem; } }
