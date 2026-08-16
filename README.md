@@ -11,9 +11,7 @@ slots, scores its signal quality, and renders human-ready outputs with source pr
 
 ## Deployment configuration
 
-Four variables are needed to run this in the cloud.
-
-Backend:
+Three variables are needed to run this in the cloud, all on the backend:
 
 ```
 OPENAI_API_KEY=sk-...
@@ -21,19 +19,18 @@ OPENAI_MODEL=gpt-5-mini
 CORS_ORIGIN=https://app.example.com
 ```
 
-Frontend:
-
-```
-NEXT_PUBLIC_API_BASE_URL=https://api.example.com
-```
+The frontend needs no deployment variables. It defaults to the deployed backend URL in
+`DEPLOYED_API_BASE_URL` (`lib/api.ts`) and to `http://127.0.0.1:8000` in development. Set
+`NEXT_PUBLIC_API_BASE_URL` only to point a build somewhere else, such as a staging API —
+it is inlined at build time, so changing it requires a rebuild, not just a restart.
 
 - `OPENAI_API_KEY` — **backend deployment only.** Never set it on the frontend and never copy it
   into a `NEXT_PUBLIC_` variable, which is inlined into the browser bundle. When it is unset the
   backend falls back to a deterministic local analyzer that makes no network calls.
 - `OPENAI_MODEL` — optional; defaults to `gpt-5-mini`.
-- `CORS_ORIGIN` — the one exact browser origin allowed to call the API. Requests from any other
-  origin are rejected.
-- `NEXT_PUBLIC_API_BASE_URL` — the public backend URL the frontend calls. Required in production.
+- `CORS_ORIGIN` — the one exact browser origin allowed to call the API, with no trailing slash.
+  It must match the browser's `Origin` header exactly; requests from any other origin are
+  rejected.
 
 The OpenAI base URL is fixed in code at `https://api.openai.com/v1`.
 

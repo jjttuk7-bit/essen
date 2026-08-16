@@ -1,15 +1,19 @@
 export type UploadedDocument = { document_id: string; source_type: string; segment_count: number };
 
+// The deployed backend. NEXT_PUBLIC_* values are inlined at build time, so relying on a
+// deployment variable means a missed rebuild silently ships a frontend that cannot reach
+// its API. The URL is public anyway — it ends up in the browser bundle either way.
+export const DEPLOYED_API_BASE_URL = "https://essen-api.onrender.com";
+
 export function apiBaseUrlFor(environment: string | undefined, configuredUrl: string | undefined): string {
   if (configuredUrl) return configuredUrl.replace(/\/$/, "");
-  if (environment === "production") return "";
+  if (environment === "production") return DEPLOYED_API_BASE_URL;
   return "http://127.0.0.1:8000";
 }
 
 const apiBaseUrl = apiBaseUrlFor(process.env.NODE_ENV, process.env.NEXT_PUBLIC_API_BASE_URL);
 
 async function request<T>(path: string, init: RequestInit): Promise<T> {
-  if (!apiBaseUrl) throw new Error("NEXT_PUBLIC_API_BASE_URL must be set for production deployments.");
   const response = await fetch(`${apiBaseUrl}${path}`, init);
   if (!response.ok) {
     const body = await response.json().catch(() => null) as { detail?: string } | null;

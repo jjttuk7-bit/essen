@@ -5,7 +5,9 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("apiBaseUrlFor", () => {
   it("uses the local API only for local development", () => { expect(api.apiBaseUrlFor("development", undefined)).toBe("http://127.0.0.1:8000"); });
-  it("does not substitute a local API URL for production", () => { expect(api.apiBaseUrlFor("production", undefined)).toBe(""); });
+  it("falls back to the deployed API in production so no build-time variable is required", () => { expect(api.apiBaseUrlFor("production", undefined)).toBe("https://essen-api.onrender.com"); });
+  it("lets a configured URL override both defaults", () => { expect(api.apiBaseUrlFor("production", "https://staging.example.com")).toBe("https://staging.example.com"); });
+  it("trims a trailing slash from a configured URL", () => { expect(api.apiBaseUrlFor("production", "https://staging.example.com/")).toBe("https://staging.example.com"); });
 });
 
 describe("getOutputs", () => {
