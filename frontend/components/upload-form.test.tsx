@@ -22,7 +22,18 @@ describe("UploadForm", () => {
 
     expect(screen.getByRole("button", { name: /analyze document/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /analyze document/i })).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByText(/문서를 읽고 있습니다/)).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByText("문서를 업로드하고 있습니다…")).toHaveAttribute("aria-live", "polite");
+  });
+  it("shows the selected file and announces the upload stage", () => {
+    uploadDocument.mockReturnValue(new Promise(() => {}));
+    render(<UploadForm />);
+    selectTextFile();
+
+    const selectedFile = screen.getByLabelText("Selected file");
+    expect(selectedFile).toHaveTextContent("brief.txt");
+    expect(selectedFile).toHaveTextContent("0.0 MB");
+    fireEvent.submit(screen.getByRole("button", { name: /analyze document/i }).closest("form")!);
+    expect(screen.getByText("문서를 업로드하고 있습니다…")).toHaveAttribute("aria-live", "polite");
   });
   it("ignores a second submit while the first request is pending", () => { uploadDocument.mockReturnValue(new Promise(() => {})); render(<UploadForm />); selectTextFile(); const form = screen.getByRole("button", { name: /analyze document/i }).closest("form")!; fireEvent.submit(form); fireEvent.submit(form); expect(uploadDocument).toHaveBeenCalledTimes(1); });
 });
