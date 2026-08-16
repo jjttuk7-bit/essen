@@ -142,3 +142,54 @@ class TestFalsePositivesFoundInRealDocuments:
         result = score_passage("새 데이터를 받으면 연 직후 10분 안에 아래 항목부터 확인한다.", Shape.BODY)
 
         assert "실행 지시" in result.reasons
+
+
+class TestTableFlattenedOntoOneLine:
+    """PDF extraction can collapse a whole table into a single line, hiding its shape."""
+
+    TEN_STEPS = ("단계 이름 핵심 질문 산출물 1 문제정의 무엇을 알고 싶은가? 문제정의서 1장 2 데이터 이해 한 행은 무엇을 의미하는가? "
+                 "데이터 사전 3 품질진단 이 데이터를 믿고 써도 되는가? 품질진단 리포트 4 탐색 어떤 모습인가? 기초 통계 "
+                 "5 원인/관계분석 왜 이런 패턴이 나타나는가? 관계도 6 의사결정 무엇을 선택해야 하는가? 대안 비교표 "
+                 "7 정책·서비스 설계 어떻게 구현하는가? 설계안 8 적용 현장에 적용한다 적용 계획 9 KPI 무엇으로 측정하는가? "
+                 "KPI 정의서 10 운영 지속적으로 관리·개선한다 모니터링 체계")
+
+    def test_a_run_of_numbered_cells_on_one_line_is_a_table(self) -> None:
+        assert classify_shape(self.TEN_STEPS) is Shape.TABLE
+
+    def test_it_does_not_reach_the_top_of_the_document(self) -> None:
+        assert score_passage(self.TEN_STEPS, classify_shape(self.TEN_STEPS)).score < 0.4
+
+    def test_ordinary_prose_mentioning_a_number_is_not_a_table(self) -> None:
+        passage = "1단계에서 문제를 정의하고, 그 다음 데이터를 이해한다. 이 순서를 지켜야 품질진단이 헛수고가 되지 않는다."
+
+        assert classify_shape(passage) is Shape.BODY
+
+    def test_a_numbered_list_of_real_sentences_is_not_a_table(self) -> None:
+        passage = "1 첫 번째 항목은 이렇게 문장으로 끝난다. 2 두 번째 항목도 문장으로 끝난다. 3 세 번째 항목도 마찬가지다."
+
+        assert classify_shape(passage) is Shape.BODY
+
+
+class TestUnitsMustBeUnits:
+    """Korean unit words are also the first syllable of common nouns."""
+
+    @pytest.mark.parametrize("passage", [
+        "5 원인/관계분석 단계에서 관계도를 만든다.",
+        "3 분석 방법을 고른다.",
+        "2 점검 항목을 확인한다.",
+        "4 주민 의견을 수렴한다.",
+    ])
+    def test_a_noun_beginning_with_a_unit_syllable_is_not_a_figure(self, passage: str) -> None:
+        assert "수치 근거" not in score_passage(passage, Shape.BODY).reasons
+
+    @pytest.mark.parametrize("passage", ["6개월간 파일럿을 운영한다.", "전체의 6% 수준이다.", "월 3회 점검한다.", "예산 500만 원이 든다."])
+    def test_a_real_measurement_is_still_a_figure(self, passage: str) -> None:
+        assert "수치 근거" in score_passage(passage, Shape.BODY).reasons
+
+
+class TestFurnitureStaysBelowProse:
+    def test_a_table_cannot_outscore_a_directive_in_prose(self) -> None:
+        table = score_passage("1 문제정의 무엇을 알고 싶은가? 2 데이터 이해 한 행은? 3 품질진단 믿고 써도 되는가?", Shape.TABLE)
+        prose = score_passage("이 확인 없이 다음 단계로 넘어가지 않는다.", Shape.BODY)
+
+        assert table.score < prose.score

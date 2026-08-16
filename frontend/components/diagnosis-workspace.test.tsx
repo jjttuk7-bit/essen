@@ -18,6 +18,7 @@ const outputs = {
 const diff = {
   document_id: "doc-1", analysis_run_id: "run-1", output_id: "out-clean", output_type: "clean_version", output_version: 2,
   counts: { REMOVED: 1, MERGED: 1, EMPHASIZED: 1, HELD: 1 },
+  identity: { kind: "절차 안내서", section_count: 13, segment_count: 4, character_count: 15206, purpose: "이 문서가 채우려는 빈자리는 다른 곳에 있다." },
   bottlenecks: [
     { kind: "STRUCTURE_NOISE", label: "구조 노이즈", share: 0.25, detail: "목차·표 조각 1개 문단은 읽고 나서야 본문이 아님을 알게 됩니다", segment_count: 1 },
     { kind: "GENERALITY", label: "일반론", share: 0.25, detail: "1개 문단이 일반론이라 읽어도 남는 정보가 없습니다", segment_count: 1 },
@@ -44,6 +45,29 @@ describe("DiagnosisWorkspace", () => {
     expect(items[1]).toHaveTextContent("Kim owns delivery.");
   });
 
+  it("says what the document is before saying what it contains", async () => {
+    getOutputs.mockResolvedValue(outputs);
+    getDiff.mockResolvedValue(diff);
+
+    render(<DiagnosisWorkspace documentId="doc-1" />);
+    const identity = await screen.findByRole("region", { name: "이 문서는" });
+
+    expect(within(identity).getByText("절차 안내서")).toBeVisible();
+    expect(identity).toHaveTextContent("13개 절");
+    expect(identity).toHaveTextContent("15,206자");
+    expect(within(identity).getByText(/채우려는 빈자리/)).toBeVisible();
+  });
+
+  it("shows no purpose line when the document never states one", async () => {
+    getOutputs.mockResolvedValue(outputs);
+    getDiff.mockResolvedValue({ ...diff, identity: { ...diff.identity, purpose: null } });
+
+    render(<DiagnosisWorkspace documentId="doc-1" />);
+    const identity = await screen.findByRole("region", { name: "이 문서는" });
+
+    expect(within(identity).queryByText(/채우려는 빈자리/)).toBeNull();
+  });
+
   it("opens with the document's core before the document itself", async () => {
     getOutputs.mockResolvedValue(outputs);
     getDiff.mockResolvedValue(diff);
@@ -51,7 +75,8 @@ describe("DiagnosisWorkspace", () => {
     render(<DiagnosisWorkspace documentId="doc-1" />);
     await screen.findAllByText("Launch the pilot in Q3.");
 
-    const headings = screen.getAllByRole("heading", { level: 2 });
+    const document_ = screen.getByRole("article", { name: "정리된 문서" });
+    const headings = within(document_).getAllByRole("heading", { level: 2 });
     expect(headings[0]).toHaveTextContent("핵심 2줄");
   });
 

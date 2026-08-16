@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { DiffResponse, Disposition, getDiff } from "@/lib/api";
+import { useState } from "react";
+import { DiffResponse, Disposition } from "@/lib/api";
 
 const labels: Record<Disposition, string> = { REMOVED: "삭제", MERGED: "통합", EMPHASIZED: "그대로", HELD: "제외" };
 const order: Disposition[] = ["EMPHASIZED", "MERGED", "REMOVED", "HELD"];
@@ -11,18 +11,8 @@ function kept(diff: DiffResponse): number {
 }
 
 /** What this document cost the reader, and what was done about it. */
-export function RewriteRationale({ documentId, outputType }: { documentId: string; outputType: string }) {
-  const [diff, setDiff] = useState<DiffResponse | null>(null);
+export function RewriteRationale({ diff }: { diff: DiffResponse }) {
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    setDiff(null);
-    getDiff(documentId, outputType).then((next) => { if (active) setDiff(next); }).catch(() => undefined);
-    return () => { active = false; };
-  }, [documentId, outputType]);
-
-  if (!diff) return null;
 
   const total = diff.entries.length;
   const share = total ? Math.round((kept(diff) / total) * 100) : 0;

@@ -21,6 +21,7 @@ from app.services.parser.service import DocumentParserService
 from app.services.diff.service import build_diff, count_dispositions
 from app.services.renderer.outline import build_outline
 from app.services.selection.bottleneck import detect_bottlenecks
+from app.services.selection.identity import identify_document
 from app.services.semantic.service import SemanticExtractionService
 from app.services.signal.service import DiagnosisService
 from app.services.renderer.service import RendererService
@@ -306,6 +307,7 @@ def get_diff(
             {"kind": finding.kind.value, "label": finding.label, "share": finding.share, "detail": finding.detail, "segment_count": len(finding.segment_ids)}
             for finding in detect_bottlenecks(segments)
         ],
+        identity=identify_document(segments).__dict__,
     )
 
 

@@ -22,10 +22,17 @@ CAUSAL = re.compile(r"(때문에|로\s*인해|그래서|덕분에|탓에)")
 WARNING = re.compile(r"(주의|위험|흔한\s*(실수|오류)|함정|착각|오인|왜곡|틀렸)")
 # A figure counts as evidence only when it measures something. Bare numbers are version
 # labels, section numbers and page numbers, which say nothing about the content.
-FIGURES = re.compile(r"\d+\s*(%p|%|퍼센트|개월|주일|주|일|년|개월|명|건|회|배|위|점|원|만|억|시간|분|초|배수|퍼센트포인트)")
+# Multi-syllable units are unmistakable. Single-syllable ones also begin common nouns —
+# 원 begins 원인, 분 begins 분석, 점 begins 점검 — so those only count when no syllable
+# follows that would make them part of a word.
+FIGURES = re.compile(r"\d+\s*(?:(?:%p|%|퍼센트포인트|퍼센트|개월|주일|시간|배수|년|명|건)|(?:원|분|점|회|배|주|일|위|만|억|초)(?![가-힣]))")
 # An interrogative asks the reader something; it does not instruct them.
 INTERROGATIVE = re.compile(r"(\?|는가|은가|ㄴ가|나요|까\??)\s*[”\"']?\s*$")
 NUMBERED_HEADING = re.compile(r"^\d+(\.\d+)+\s+\S")
+# Extraction flattens a table onto one line, hiding the shape that would mark it. What
+# survives is a run of ascending cell numbers with no sentence ending between them.
+CELL_NUMBER = re.compile(r"(?:^|\s)(\d{1,2})\s+\S")
+FLATTENED_TABLE_CELLS = 5
 GENERIC = re.compile(r"(일반적으로|대체로|흔히|매우\s*중요|아주\s*중요|중요하다|다양한|여러\s*가지|바람직하|노력해야|최선을\s*다|in general|overall|best practice)")
 
 TOC_MARKER = re.compile(r"(PART|CHAPTER)\s*\d+", re.IGNORECASE)
@@ -34,6 +41,9 @@ SENTENCE_END = re.compile(r"(다|요|까|음|함|\.|\?|!)\s*$")
 
 SHAPE_BASE = {"BODY": 0.35, "CHECKLIST": 0.30, "TABLE": 0.05, "TOC": 0.02, "HEADING": 0.05}
 SHAPE_REASON = {"TABLE": "표 조각", "TOC": "목차 항목", "HEADING": "제목 줄"}
+# Form settles it: signals matched inside cells or heading text are incidental, so
+# furniture is held below prose however its words happen to read.
+SHAPE_CEILING = {"TABLE": 0.3, "TOC": 0.1, "HEADING": 0.2}
 TABLE_LINE_LENGTH = 24
 TABLE_MIN_LINES = 4
 
@@ -67,7 +77,24 @@ def classify_shape(segment_text: str) -> Shape:
     short_unfinished = [line for line in lines if len(line) <= TABLE_LINE_LENGTH and not SENTENCE_END.search(line)]
     if len(lines) >= TABLE_MIN_LINES and len(short_unfinished) >= len(lines) * 0.7:
         return Shape.TABLE
+    if _is_flattened_table(" ".join(lines)):
+        return Shape.TABLE
     return Shape.BODY
+
+
+def _is_flattened_table(text: str) -> bool:
+    """A table squeezed onto one line: cell numbers ascending, none of them ending a sentence."""
+    numbers = [int(match.group(1)) for match in CELL_NUMBER.finditer(text)]
+    ascending = 1
+    longest = 1
+    for previous, current in zip(numbers, numbers[1:]):
+        ascending = ascending + 1 if current == previous + 1 else 1
+        longest = max(longest, ascending)
+    if longest < FLATTENED_TABLE_CELLS:
+        return False
+    # Real prose closes its sentences; a row of cells runs on.
+    cells = [cell.strip() for cell in re.split(r"(?:^|\s)\d{1,2}\s+", text) if cell.strip()]
+    return sum(1 for cell in cells if SENTENCE_END.search(cell)) <= len(cells) * 0.3
 
 
 def score_passage(passage: str, shape: Shape) -> RuleScore:
@@ -102,4 +129,5 @@ def score_passage(passage: str, shape: Shape) -> RuleScore:
 
     if not reasons:
         reasons.append("본문 서술")
-    return RuleScore(round(min(1.0, max(0.0, score)), 4), tuple(reasons))
+    ceiling = SHAPE_CEILING.get(shape.value, 1.0)
+    return RuleScore(round(min(ceiling, max(0.0, score)), 4), tuple(reasons))

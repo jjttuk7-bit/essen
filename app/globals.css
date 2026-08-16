@@ -128,3 +128,10 @@ a { color: inherit; }
 .doc-body .doc-section:first-child { padding: 1rem 1.15rem; margin-bottom: 2rem; border-left: 3px solid var(--accent); background: #fafbfb; }
 .doc-body .doc-section:first-child h2 { margin-top: 0; color: var(--accent); font-size: .82rem; letter-spacing: .06em; }
 .doc-body .doc-section:first-child li { font-weight: 500; }
+.identity { margin-bottom: 1.75rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--hairline); }
+.identity h2 { margin: 0 0 .5rem; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.identity-kind { margin: 0; display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
+.identity-kind b { font-size: 1.15rem; }
+.identity-hint { color: var(--muted); font-size: .82rem; }
+.identity-scale { margin: .35rem 0 0; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+.identity-purpose { margin: .8rem 0 0; padding-left: .8rem; border-left: 2px solid var(--hairline); color: var(--ink); font-size: .88rem; line-height: 1.7; }

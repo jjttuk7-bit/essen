@@ -121,6 +121,16 @@ class DiffEntryResponse(BaseModel):
     provenance: ProvenanceResponse
 
 
+class IdentityResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: str
+    section_count: int
+    segment_count: int
+    character_count: int
+    purpose: str | None
+
+
 class BottleneckResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -142,3 +152,4 @@ class DiffResponse(BaseModel):
     entries: list[DiffEntryResponse]
     counts: dict[str, int]
     bottlenecks: list[BottleneckResponse]
+    identity: IdentityResponse
