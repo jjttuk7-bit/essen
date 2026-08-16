@@ -286,6 +286,7 @@ def get_diff(
     segments = list(session.scalars(select(Segment).where(Segment.document_id == document.id).order_by(Segment.order_index)))
     labels = list(session.scalars(select(QualityLabel).where(QualityLabel.analysis_run_id == run.id)))
     entries = build_diff(segments, labels, output.provenance, {segment.id: segment.text for segment in segments})
+    identity = identify_document(segments)
     return DiffResponse(
         document_id=document.id,
         analysis_run_id=run.id,
@@ -307,9 +308,9 @@ def get_diff(
         counts=count_dispositions(entries),
         bottlenecks=[
             {"kind": finding.kind.value, "label": finding.label, "share": finding.share, "detail": finding.detail, "segment_count": len(finding.segment_ids)}
-            for finding in detect_bottlenecks(segments)
+            for finding in detect_bottlenecks(segments, identity.kind)
         ],
-        identity=identify_document(segments).__dict__,
+        identity=identity.__dict__,
     )
 
 

@@ -20,6 +20,12 @@ DIRECTIVE = re.compile(r"(하라|해야\s|해야한다|하지\s*(말|않)|반드
 CONCLUSION = re.compile(r"(따라서|결국|요컨대|결론적으로|핵심은|즉,|정리하면)")
 CAUSAL = re.compile(r"(때문에|로\s*인해|그래서|덕분에|탓에)")
 WARNING = re.compile(r"(주의|위험|흔한\s*(실수|오류)|함정|착각|오인|왜곡|틀렸)")
+# Minutes settle things in a small set of phrases, and name who carries them.
+SETTLED = re.compile(r"(하기로\s*(결정|합의|함|했다)|결정했다|결정한다|합의했다|승인(했|한|됨)|의결|채택하기로|확정)")
+ASSIGNED = re.compile(r"(담당\s*[:：]|담당자|책임자|기한\s*[:：]|까지\s*(통보|제출|완료|공유|보고|회신))")
+# A line that only records who spoke is the transcript, not the outcome.
+ATTRIBUTION = re.compile(r"^[가-힣]{2,4}\s*(\([^)]{1,12}\))?\s*[:：]")
+AGENDA = re.compile(r"^(안건|의안)\s*\d+")
 # A figure counts as evidence only when it measures something. Bare numbers are version
 # labels, section numbers and page numbers, which say nothing about the content.
 # Multi-syllable units are unmistakable. Single-syllable ones also begin common nouns —
@@ -118,6 +124,8 @@ def score_passage(passage: str, shape: Shape) -> RuleScore:
         (WARNING, 0.20, "주의·위험"),
         (CAUSAL, 0.10, "인과 설명"),
         (FIGURES, 0.15, "수치 근거"),
+        (SETTLED, 0.35, "결정·합의"),
+        (ASSIGNED, 0.25, "담당·기한"),
     ):
         if weight and pattern.search(text):
             score += weight
@@ -126,6 +134,10 @@ def score_passage(passage: str, shape: Shape) -> RuleScore:
     if GENERIC.search(text):
         score -= 0.25
         reasons.append("일반론 표현")
+
+    if ATTRIBUTION.match(text):
+        score -= 0.25
+        reasons.append("발언 기록")
 
     if not reasons:
         reasons.append("본문 서술")

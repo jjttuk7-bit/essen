@@ -14,7 +14,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from app.services.renderer.outline import build_outline
-from app.services.selection.rules import CONCLUSION, DIRECTIVE, FIGURES, INTERROGATIVE, Shape, classify_shape
+from app.services.selection.rules import AGENDA, ATTRIBUTION, CONCLUSION, DIRECTIVE, FIGURES, INTERROGATIVE, SETTLED, Shape, classify_shape
 
 SENTENCE = re.compile(r"(?<=다\.)\s+|(?<=[.!?])\s+|\n")
 # A document that states its purpose does so about itself, by name.
@@ -30,6 +30,10 @@ QUESTIONNAIRE_SHARE = 0.4
 QUESTIONNAIRE_DIRECTIVE_CEILING = 0.05
 GUIDE_DIRECTIVE_SHARE = 0.08
 REPORT_SHARE = 0.12
+# Minutes announce themselves in their opening block, then number their agenda. Either
+# alone is weak — a report can list attendees, a guide can number sections — so both count.
+MINUTES_HEADER = re.compile(r"(참석|참가자|배석|일시\s*[:：]|장소\s*[:：]|회의록|회의\s*결과)")
+MINUTES_MARKS = 2
 # A continued thought after a dash or an opening quote belongs to the sentence before it.
 CONTINUATION = re.compile("^[—–\\-\"“‘']")
 
@@ -47,7 +51,20 @@ def _sentences(text: str) -> list[str]:
     return [" ".join(part.split()) for part in SENTENCE.split(text) if len(part.strip()) >= 10]
 
 
-def _kind(sentences: Sequence[str]) -> str:
+def _looks_like_minutes(segments: Sequence[object]) -> bool:
+    """Header block, numbered agenda, attributed speech, recorded decisions — two of four."""
+    joined = "\n".join(getattr(segment, "text", "") for segment in segments)
+    lines = [line.strip() for line in joined.split("\n") if line.strip()]
+    marks = sum([
+        bool(MINUTES_HEADER.search(joined)),
+        any(AGENDA.match(line) for line in lines),
+        any(ATTRIBUTION.match(line) for line in lines),
+        bool(SETTLED.search(joined)),
+    ])
+    return marks >= MINUTES_MARKS
+
+
+def _kind(sentences: Sequence[str], minutes: bool = False) -> str:
     """Name the document from the mix of speech acts it is made of."""
     if not sentences:
         return "일반 문서"
@@ -57,6 +74,8 @@ def _kind(sentences: Sequence[str]) -> str:
     questions = sum(1 for line in sentences if INTERROGATIVE.search(line))
     concluding = sum(1 for line in sentences if CONCLUSION.search(line))
 
+    if minutes:
+        return "회의록"
     if questions / total >= QUESTIONNAIRE_SHARE and directives / total < QUESTIONNAIRE_DIRECTIVE_CEILING:
         return "질문지"
     if directives / total >= GUIDE_DIRECTIVE_SHARE:
@@ -91,7 +110,7 @@ def identify_document(segments: Sequence[object]) -> DocumentIdentity:
     ]
     outline = build_outline(ordered)
     return DocumentIdentity(
-        kind=_kind(sentences),
+        kind=_kind(sentences, _looks_like_minutes(ordered)),
         section_count=len(outline.ordered_headings),
         segment_count=len(ordered),
         character_count=sum(len(getattr(segment, "text", "")) for segment in ordered),

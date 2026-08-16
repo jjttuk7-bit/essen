@@ -19,6 +19,8 @@ MARKER_PATTERNS = (
     re.compile(r"^제?\s*\d+\s*(장|부|절)\b"),
     re.compile(r"^\d+(\.\d+)*[.)]\s+\S"),
     re.compile(r"^#{1,6}\s+\S"),
+    # Minutes number their agenda rather than their chapters.
+    re.compile(r"^(안건|의안)\s*\d+"),
 )
 NAMED_SECTIONS = ("목차", "서문", "머리말", "맺음말", "부록", "개요", "배경", "요약", "결론", "들어가며", "나가며")
 BARE_MARKER = re.compile(r"^(PART|CHAPTER)\s*\d+$", re.IGNORECASE)

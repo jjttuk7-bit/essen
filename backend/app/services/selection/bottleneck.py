@@ -13,7 +13,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
 
-from app.services.selection.rules import GENERIC, INTERROGATIVE, Shape, classify_shape, score_passage
+from app.services.selection.rules import AGENDA, ASSIGNED, GENERIC, INTERROGATIVE, SETTLED, Shape, classify_shape, score_passage
 
 SENTENCE = re.compile(r"(?<=다\.)\s+|(?<=[.!?])\s+|\n")
 WORD = re.compile(r"[0-9A-Za-z가-힣]+")
@@ -34,6 +34,8 @@ class Bottleneck(str, Enum):
     GENERALITY = "GENERALITY"
     BURIED_CORE = "BURIED_CORE"
     UNRESOLVED = "UNRESOLVED"
+    UNDECIDED = "UNDECIDED"
+    UNASSIGNED = "UNASSIGNED"
 
 
 LABELS = {
@@ -42,7 +44,13 @@ LABELS = {
     Bottleneck.GENERALITY: "일반론",
     Bottleneck.BURIED_CORE: "매몰된 핵심",
     Bottleneck.UNRESOLVED: "미해결 질문",
+    Bottleneck.UNDECIDED: "결론 없는 안건",
+    Bottleneck.UNASSIGNED: "담당 없는 결정",
 }
+
+# Bottlenecks only some documents can have. An agenda that decided nothing is a defect in
+# minutes and meaningless anywhere else.
+MINUTES_ONLY = (Bottleneck.UNDECIDED, Bottleneck.UNASSIGNED)
 
 
 @dataclass(frozen=True)
@@ -116,24 +124,68 @@ def _unresolved(segments: Sequence[object]) -> tuple[list[str], str]:
     return asking, f"답이 붙지 않은 질문이 {len(asking)}개라 판단을 내릴 수 없습니다"
 
 
+def _agenda_items(segments: Sequence[object]) -> list[tuple[str, list[object]]]:
+    """Group each agenda heading with the discussion recorded under it."""
+    items: list[tuple[str, list[object]]] = []
+    for segment in segments:
+        first = next((line.strip() for line in getattr(segment, "text", "").split("\n") if line.strip()), "")
+        if AGENDA.match(first):
+            items.append((first, []))
+        elif items:
+            items[-1][1].append(segment)
+    return items
+
+
+def _undecided(segments: Sequence[object]) -> tuple[list[str], str]:
+    """An agenda item that produced no decision is the one that returns next week."""
+    open_items = [
+        (heading, discussion) for heading, discussion in _agenda_items(segments)
+        if discussion and not any(SETTLED.search(getattr(item, "text", "")) for item in discussion)
+    ]
+    if not open_items:
+        return [], ""
+    names = ", ".join(heading.split(".")[0].strip() for heading, _ in open_items)
+    segment_ids = [getattr(item, "id") for _, discussion in open_items for item in discussion]
+    return segment_ids, f"{names}은(는) 논의만 하고 결론이 남지 않았습니다"
+
+
+def _unassigned(segments: Sequence[object]) -> tuple[list[str], str]:
+    """A decision nobody owns and nothing dates is a decision that will not happen."""
+    orphaned = [
+        getattr(segment, "id") for segment in segments
+        if SETTLED.search(getattr(segment, "text", "")) and not ASSIGNED.search(getattr(segment, "text", ""))
+    ]
+    if not orphaned:
+        return [], ""
+    return orphaned, f"결정 {len(orphaned)}건에 담당자나 기한이 붙어 있지 않습니다"
+
+
 DETECTORS = (
     (Bottleneck.STRUCTURE_NOISE, _structure_noise),
     (Bottleneck.REPETITION, _repetition),
     (Bottleneck.GENERALITY, _generality),
     (Bottleneck.BURIED_CORE, _buried_core),
     (Bottleneck.UNRESOLVED, _unresolved),
+    (Bottleneck.UNDECIDED, _undecided),
+    (Bottleneck.UNASSIGNED, _unassigned),
 )
 
 
-def detect_bottlenecks(segments: Sequence[object]) -> list[BottleneckFinding]:
-    """Report each bottleneck this document carries, costliest first."""
+def detect_bottlenecks(segments: Sequence[object], kind: str = "") -> list[BottleneckFinding]:
+    """Report each bottleneck this document carries, costliest first.
+
+    Some bottlenecks belong to one kind of document. A section that decides nothing is a
+    defect in minutes and the normal state of a guide, so the kind gates them.
+    """
     ordered = sorted(segments, key=lambda segment: getattr(segment, "order_index", 0))
     if not ordered:
         return []
 
     findings = []
-    for kind, detect in DETECTORS:
+    for bottleneck, detect in DETECTORS:
+        if bottleneck in MINUTES_ONLY and kind != "회의록":
+            continue
         segment_ids, detail = detect(ordered)
         if segment_ids:
-            findings.append(BottleneckFinding(kind=kind, share=round(len(segment_ids) / len(ordered), 4), detail=detail, segment_ids=tuple(segment_ids)))
+            findings.append(BottleneckFinding(kind=bottleneck, share=round(len(segment_ids) / len(ordered), 4), detail=detail, segment_ids=tuple(segment_ids)))
     return sorted(findings, key=lambda finding: -finding.share)
