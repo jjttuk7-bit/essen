@@ -19,6 +19,7 @@ from app.services.llm.factory import create_llm_adapter
 from app.services.parser.base import ParseError
 from app.services.parser.service import DocumentParserService
 from app.services.diff.service import build_diff, count_dispositions
+from app.services.renderer.outline import build_outline
 from app.services.semantic.service import SemanticExtractionService
 from app.services.signal.service import DiagnosisService
 from app.services.renderer.service import RendererService
@@ -224,6 +225,7 @@ def render_document(document_id: str, request: RenderRequest | None = None, sess
     DiagnosisService().diagnose_document(session, document_id)
     slots = list(session.scalars(select(SemanticSlot).where(SemanticSlot.analysis_run_id == run.id)))
     labels = list(session.scalars(select(QualityLabel).where(QualityLabel.analysis_run_id == run.id)))
+    outline = build_outline(list(session.scalars(select(Segment).where(Segment.document_id == document.id).order_by(Segment.order_index))))
     requested = request or RenderRequest()
     output_types = [requested.output_type] if requested.output_type else ["clean_version", "executive_summary", "action_decision_sheet"]
     outputs: list[RenderedOutput] = []
@@ -234,7 +236,7 @@ def render_document(document_id: str, request: RenderRequest | None = None, sess
             config_hash = hashlib.sha256(json.dumps(config, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
             output = session.scalar(select(RenderedOutput).where(RenderedOutput.analysis_run_id == run.id, RenderedOutput.output_type == output_type, RenderedOutput.render_config_hash == config_hash))
             if output is None:
-                rendered = renderer.render(output_type, slots, labels, requested.audience, requested.max_words)
+                rendered = renderer.render(output_type, slots, labels, requested.audience, requested.max_words, outline)
                 provenance = [{"section_index": i, "heading": section.heading, "text": section.text, "source_slot_id": slot_id, "source_segment_id": segment_id} for i, section in enumerate(rendered.sections) for slot_id, segment_id in zip(section.source_slot_ids, section.source_segment_ids, strict=True)]
                 for _ in range(3):
                     version = (session.scalar(select(func.max(RenderedOutput.version)).where(RenderedOutput.analysis_run_id == run.id, RenderedOutput.output_type == output_type)) or 0) + 1
