@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from sqlalchemy import Boolean, CheckConstraint, Enum as SqlEnum, event
+from sqlalchemy import Boolean, CheckConstraint, Enum as SqlEnum, Integer, UniqueConstraint, event
 from sqlalchemy import Float, ForeignKey, JSON, String, Text
 from sqlalchemy.orm import Mapped, Session, mapped_column, relationship, validates
 
@@ -90,13 +90,20 @@ class Gap(IdentifiedRecord):
 
 class RenderedOutput(IdentifiedRecord):
     __tablename__ = "rendered_outputs"
-    __table_args__ = (CheckConstraint("provenance IS NOT NULL", name="ck_outputs_provenance_required"),)
+    __table_args__ = (
+        CheckConstraint("provenance IS NOT NULL", name="ck_outputs_provenance_required"),
+        UniqueConstraint("analysis_run_id", "output_type", "render_config_hash", name="uq_outputs_render_config"),
+        UniqueConstraint("analysis_run_id", "output_type", "version", name="uq_outputs_version"),
+    )
 
     analysis_run_id: Mapped[str] = mapped_column(ForeignKey("analysis_runs.id", ondelete="CASCADE"), nullable=False, index=True)
     document_id: Mapped[str] = mapped_column(ForeignKey("documents.id", ondelete="CASCADE"), index=True)
     output_type: Mapped[str] = mapped_column(String(64))
     content: Mapped[str] = mapped_column(Text)
-    version: Mapped[int] = mapped_column(default=1)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    audience: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    max_words: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    render_config_hash: Mapped[str] = mapped_column(String(64), nullable=False, default="legacy")
     provenance: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
 
     analysis_run: Mapped[AnalysisRun] = relationship(back_populates="rendered_outputs")
@@ -165,3 +172,5 @@ def validate_rendered_output_provenance(session: Session, _: Any, __: Any) -> No
                 slot_segment = _pending_or_persisted(session, Segment, slot.source_segment_id)
                 if slot_segment is None or not _same_record(slot_segment.document, document):
                     raise ValueError("provenance source slot must belong to the output document")
+                if segment_id and not _same_record(slot_segment, _pending_or_persisted(session, Segment, segment_id)):
+                    raise ValueError("provenance source slot and source segment must reference the same source segment")

@@ -169,3 +169,28 @@ def test_rendered_output_provenance_must_reference_its_document_and_analysis_run
             )
             with pytest.raises(ValueError, match="provenance"):
                 session.commit()
+
+
+def test_rendered_output_rejects_mismatched_slot_and_segment_pair() -> None:
+    engine = create_database_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        document = Document(title="Plan", source_type="markdown", raw_text="# Plan")
+        first_segment = Segment(order_index=0, text="First", token_count=1)
+        second_segment = Segment(order_index=1, text="Second", token_count=1)
+        document.segments = [first_segment, second_segment]
+        run = AnalysisRun(run_type="semantic", prompt_version="v1", raw_model_output="{}")
+        document.analysis_runs = [run]
+        slot = SemanticSlot(analysis_run=run, source_segment=first_segment, slot_type="FACT", normalized_text="First", confidence=1, importance=1)
+        session.add_all([document, slot])
+        session.commit()
+        session.add(RenderedOutput(
+            analysis_run_id=run.id,
+            document_id=document.id,
+            output_type="executive_summary",
+            content="First",
+            render_config_hash="a" * 64,
+            provenance=[{"source_slot_id": slot.id, "source_segment_id": second_segment.id}],
+        ))
+        with pytest.raises(ValueError, match="same source segment"):
+            session.commit()

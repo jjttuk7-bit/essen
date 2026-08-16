@@ -1,20 +1,24 @@
+import hashlib
+import json
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_session
-from app.models.analysis import AnalysisRun, AnalysisStatus, Gap, QualityCategory, QualityLabel, Relation, SemanticSlot
+from app.models.analysis import AnalysisRun, AnalysisStatus, Gap, QualityCategory, QualityLabel, Relation, RenderedOutput, SemanticSlot
 from app.models.document import Document, Segment
-from app.schemas.api import DiagnosisResponse, SemanticMapResponse
+from app.schemas.api import DiagnosisResponse, RenderRequest, RenderResponse, RenderedOutputResponse, SemanticMapResponse
 from app.schemas.document import DocumentUploadResponse
 from app.services.llm.factory import create_llm_adapter
 from app.services.parser.base import ParseError
 from app.services.parser.service import DocumentParserService
 from app.services.semantic.service import SemanticExtractionService
 from app.services.signal.service import DiagnosisService
+from app.services.renderer.service import RendererService
 
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -192,3 +196,67 @@ def get_semantic_map(document_id: str, session: Session = Depends(get_session)) 
             for relation in relations
         ],
     )
+
+
+
+def _output_sections(output: RenderedOutput) -> list[dict[str, object]]:
+    grouped: dict[int, dict[str, object]] = {}
+    for reference in output.provenance:
+        index = int(reference.get("section_index", 0))
+        section = grouped.setdefault(index, {"heading": reference["heading"], "text": reference["text"], "source_slot_ids": [], "source_segment_ids": []})
+        section["source_slot_ids"].append(reference["source_slot_id"])
+        section["source_segment_ids"].append(reference["source_segment_id"])
+    return [grouped[index] for index in sorted(grouped)]
+
+
+def _output_response(output: RenderedOutput) -> RenderedOutputResponse:
+    return RenderedOutputResponse(id=output.id, output_type=output.output_type, content=output.content, sections=_output_sections(output), version=output.version, audience=output.audience, max_words=output.max_words, render_config_hash=output.render_config_hash)
+
+
+@router.post("/{document_id}/render", response_model=RenderResponse, status_code=status.HTTP_201_CREATED)
+def render_document(document_id: str, request: RenderRequest | None = None, session: Session = Depends(get_session)) -> RenderResponse:
+    document, run = _completed_analysis(session, document_id)
+    slots = list(session.scalars(select(SemanticSlot).where(SemanticSlot.analysis_run_id == run.id)))
+    labels = list(session.scalars(select(QualityLabel).where(QualityLabel.analysis_run_id == run.id)))
+    requested = request or RenderRequest()
+    output_types = [requested.output_type] if requested.output_type else ["clean_version", "executive_summary", "action_decision_sheet"]
+    outputs: list[RenderedOutput] = []
+    renderer = RendererService()
+    try:
+        for output_type in output_types:
+            config = {"audience": requested.audience, "max_words": requested.max_words, "output_type": output_type}
+            config_hash = hashlib.sha256(json.dumps(config, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            output = session.scalar(select(RenderedOutput).where(RenderedOutput.analysis_run_id == run.id, RenderedOutput.output_type == output_type, RenderedOutput.render_config_hash == config_hash))
+            if output is None:
+                rendered = renderer.render(output_type, slots, labels, requested.audience, requested.max_words)
+                provenance = [{"section_index": i, "heading": section.heading, "text": section.text, "source_slot_id": slot_id, "source_segment_id": segment_id} for i, section in enumerate(rendered.sections) for slot_id, segment_id in zip(section.source_slot_ids, section.source_segment_ids, strict=True)]
+                for _ in range(3):
+                    version = (session.scalar(select(func.max(RenderedOutput.version)).where(RenderedOutput.analysis_run_id == run.id, RenderedOutput.output_type == output_type)) or 0) + 1
+                    candidate = RenderedOutput(analysis_run_id=run.id, document_id=document.id, output_type=output_type, content=rendered.content, version=version, audience=requested.audience, max_words=requested.max_words, render_config_hash=config_hash, provenance=provenance)
+                    try:
+                        with session.begin_nested():
+                            session.add(candidate)
+                            session.flush()
+                        output = candidate
+                        break
+                    except IntegrityError:
+                        output = session.scalar(select(RenderedOutput).where(RenderedOutput.analysis_run_id == run.id, RenderedOutput.output_type == output_type, RenderedOutput.render_config_hash == config_hash))
+                        if output is not None:
+                            break
+                if output is None:
+                    raise RuntimeError("Could not allocate a unique output version")
+            outputs.append(output)
+        session.commit()
+        for output in outputs:
+            session.refresh(output)
+    except Exception:
+        session.rollback()
+        raise
+    return RenderResponse(document_id=document.id, analysis_run_id=run.id, outputs=[_output_response(output) for output in outputs])
+
+
+@router.get("/{document_id}/outputs", response_model=RenderResponse)
+def get_outputs(document_id: str, session: Session = Depends(get_session)) -> RenderResponse:
+    document, run = _completed_analysis(session, document_id)
+    outputs = list(session.scalars(select(RenderedOutput).where(RenderedOutput.document_id == document.id, RenderedOutput.analysis_run_id == run.id).order_by(RenderedOutput.output_type, RenderedOutput.version)))
+    return RenderResponse(document_id=document.id, analysis_run_id=run.id, outputs=[_output_response(output) for output in outputs])

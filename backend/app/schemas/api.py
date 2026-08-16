@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.diagnosis import QualityMetrics
 
@@ -69,3 +71,39 @@ class SemanticMapResponse(BaseModel):
     audience: str
     slots: list[SemanticSlotResponse]
     relations: list[RelationResponse]
+
+class RenderedSectionResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    heading: str
+    text: str
+    source_slot_ids: list[str]
+    source_segment_ids: list[str]
+
+
+class RenderedOutputResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    output_type: str
+    content: str
+    sections: list[RenderedSectionResponse]
+    version: int
+    audience: str | None
+    max_words: int | None
+    render_config_hash: str
+
+
+class RenderResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str
+    analysis_run_id: str
+    outputs: list[RenderedOutputResponse]
+
+class RenderRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    output_type: Literal["clean_version", "executive_summary", "action_decision_sheet"] | None = None
+    audience: str | None = None
+    max_words: int | None = Field(default=None, ge=1)
