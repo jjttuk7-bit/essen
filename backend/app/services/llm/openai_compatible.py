@@ -1,4 +1,6 @@
 import json
+import logging
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -8,6 +10,14 @@ from app.schemas.llm import AnalysisRequest
 from app.schemas.semantic import ValidatedAnalysis, validate_analysis_source_context
 from app.services.llm.base import LLMAdapter
 from app.services.llm.strict_schema import ANALYSIS_JSON_SCHEMA
+
+logger = logging.getLogger("app")
+
+# Extraction time grows with the number of segments, so a whole report in one call exceeds
+# any reasonable timeout. Batches keep each call small; running them together keeps the
+# wall clock near the slowest batch instead of the sum of all of them.
+BATCH_SIZE = 10
+MAX_CONCURRENCY = 4
 
 
 class OpenAICompatibleLLMAdapter(LLMAdapter):
@@ -22,6 +32,30 @@ class OpenAICompatibleLLMAdapter(LLMAdapter):
     def analyze(self, request: AnalysisRequest) -> ValidatedAnalysis:
         if not self.base_url or not self.api_key or not self.model:
             raise ValueError("OpenAI-compatible provider requires base URL, API key, and model")
+        segments = list(request.segments)
+        batches = [segments[start:start + BATCH_SIZE] for start in range(0, len(segments), BATCH_SIZE)] or [[]]
+        if len(batches) == 1:
+            return self._analyze_batch(request, batches[0])
+
+        with ThreadPoolExecutor(max_workers=min(MAX_CONCURRENCY, len(batches))) as pool:
+            results = list(pool.map(lambda batch: self._safe_batch(request, batch), batches))
+
+        # Batches complete out of order; the reader still needs the document's order.
+        position = {segment.id: index for index, segment in enumerate(segments)}
+        slots = [slot for result in results for slot in result.slots]
+        slots.sort(key=lambda slot: position.get(slot.source_segment_id, len(position)))
+        return ValidatedAnalysis(slots=slots)
+
+    def _safe_batch(self, request: AnalysisRequest, batch: list) -> ValidatedAnalysis:
+        """One refused batch should not discard the rest of a long document."""
+        try:
+            return self._analyze_batch(request, batch)
+        except Exception:
+            logger.exception("Extraction batch failed for %d segments", len(batch))
+            return ValidatedAnalysis(slots=[])
+
+    def _analyze_batch(self, request: AnalysisRequest, batch: list) -> ValidatedAnalysis:
+        request = request.model_copy(update={"segments": batch})
         payload = {
             "model": self.model,
             "messages": [{"role": "system", "content": self._prompt()}, {"role": "user", "content": request.model_dump_json()}],
