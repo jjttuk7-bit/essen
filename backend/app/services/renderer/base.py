@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Iterable
 
@@ -26,6 +27,24 @@ class RenderedDocument:
     @property
     def provenance(self) -> list[dict[str, object]]:
         return [{"heading": section.heading, "text": section.text, "source_slot_ids": section.source_slot_ids, "source_segment_ids": section.source_segment_ids} for section in self.sections]
+
+
+# How many items each form may carry. The product's value is the reduction, so every
+# output is capped rather than growing with the source document.
+ITEM_BUDGETS = {"clean_version": 30, "executive_summary": 8, "action_decision_sheet": 12}
+
+
+def select_by_importance(slots: Sequence[object], *, limit: int, preserve_order: bool = False) -> list[object]:
+    """Keep the highest-importance slots, dropping the rest.
+
+    Ranking decides what survives; `preserve_order` then restores source order so the
+    reader still meets the surviving items in the sequence the document used.
+    """
+    ordered = sorted(enumerate(slots), key=lambda pair: (-float(getattr(pair[1], "importance", 0.0)), pair[0]))
+    selected = ordered[:limit]
+    if preserve_order:
+        selected = sorted(selected, key=lambda pair: pair[0])
+    return [slot for _, slot in selected]
 
 
 def slot_value(slot: object) -> str:

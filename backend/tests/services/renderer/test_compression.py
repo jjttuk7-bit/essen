@@ -1,0 +1,88 @@
+"""The product exists to return a shorter document, so compression is a contract."""
+
+from app.services.renderer.base import ITEM_BUDGETS, select_by_importance
+from app.services.renderer.service import RendererService
+
+
+class FakeSlot:
+    def __init__(self, index: int, slot_type: str, importance: float) -> None:
+        self.id = f"slot-{index}"
+        self.slot_type = slot_type
+        self.normalized_text = f"Statement {index}."
+        self.source_segment_id = f"segment-{index}"
+        self.importance = importance
+        self.confidence = 0.9
+
+
+def _slots(count: int, slot_type: str = "FACT") -> list[FakeSlot]:
+    return [FakeSlot(index, slot_type, importance=index / count) for index in range(count)]
+
+
+def _item_count(document) -> int:
+    return sum(len(section.text.split("\n")) for section in document.sections)
+
+
+def test_select_by_importance_keeps_the_highest_scoring_items() -> None:
+    selected = select_by_importance(_slots(10), limit=3)
+
+    assert [slot.id for slot in selected] == ["slot-9", "slot-8", "slot-7"]
+
+
+def test_select_by_importance_keeps_document_order_within_the_selection() -> None:
+    """Ranking decides what survives; the reader still wants source order."""
+    selected = select_by_importance(_slots(10), limit=3, preserve_order=True)
+
+    assert [slot.id for slot in selected] == ["slot-7", "slot-8", "slot-9"]
+
+
+def test_every_output_stays_inside_its_item_budget() -> None:
+    slots = _slots(60)
+
+    for output_type, budget in ITEM_BUDGETS.items():
+        document = RendererService().render(output_type, slots)
+        assert _item_count(document) <= budget, output_type
+
+
+def test_the_executive_summary_is_the_shortest_form() -> None:
+    slots = _slots(60)
+    renderer = RendererService()
+
+    executive = _item_count(renderer.render("executive_summary", slots))
+    clean = _item_count(renderer.render("clean_version", slots))
+
+    assert executive < clean
+
+
+def test_outputs_no_longer_dump_unmatched_slots_into_a_catch_all() -> None:
+    """A catch-all section defeats compression: nothing is ever left out."""
+    document = RendererService().render("executive_summary", _slots(60, slot_type="PURPOSE"))
+
+    assert "Source-backed details" not in {section.heading for section in document.sections}
+
+
+def test_a_short_document_is_returned_whole() -> None:
+    document = RendererService().render("clean_version", _slots(3))
+
+    assert _item_count(document) == 3
+
+
+def test_compression_still_produces_something_for_low_signal_input() -> None:
+    document = RendererService().render("action_decision_sheet", _slots(5, slot_type="CONTEXT"))
+
+    assert document.sections
+
+
+def test_a_word_limit_drops_whole_items_and_keeps_ids_aligned() -> None:
+    """Truncating mid-item would collapse the line structure and desync source ids."""
+    document = RendererService().render("clean_version", _slots(10), max_words=5)
+
+    for section in document.sections:
+        lines = section.text.split("\n")
+        assert len(lines) == len(section.source_slot_ids) == len(section.source_segment_ids)
+        assert all(line.endswith(".") for line in lines)
+
+
+def test_a_word_limit_still_bounds_the_output() -> None:
+    document = RendererService().render("clean_version", _slots(30), max_words=6)
+
+    assert sum(len(section.text.split()) for section in document.sections) <= 6

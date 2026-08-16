@@ -44,14 +44,28 @@ class RendererService:
 
     @staticmethod
     def _limit_words(output: RenderedDocument, max_words: int | None) -> RenderedDocument:
+        """Drop whole items to fit the budget.
+
+        Each line is one semantic slot, index-aligned with the source id lists. Cutting
+        mid-line would both leave a fragment in the document and desync that alignment,
+        so an item that does not fit is dropped along with its ids.
+        """
         if max_words is None:
             return output
         remaining = max_words
         sections: list[RenderedSection] = []
         for section in output.sections:
-            words = section.text.split()
-            if remaining <= 0:
-                break
-            sections.append(RenderedSection(section.heading, " ".join(words[:remaining]), section.source_slot_ids, section.source_segment_ids))
-            remaining -= len(words)
+            lines: list[str] = []
+            slot_ids: list[str] = []
+            segment_ids: list[str] = []
+            for line, slot_id, segment_id in zip(section.text.split("\n"), section.source_slot_ids, section.source_segment_ids, strict=True):
+                length = len(line.split())
+                if length > remaining:
+                    continue
+                lines.append(line)
+                slot_ids.append(slot_id)
+                segment_ids.append(segment_id)
+                remaining -= length
+            if lines:
+                sections.append(RenderedSection(section.heading, "\n".join(lines), slot_ids, segment_ids))
         return RenderedDocument(output.output_type, sections)

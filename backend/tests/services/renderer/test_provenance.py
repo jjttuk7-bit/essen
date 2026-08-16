@@ -30,7 +30,8 @@ def test_renderer_rejects_sections_without_slot_provenance() -> None:
         RendererService().validate_sections([SimpleNamespace(text="Invented claim", source_slot_ids=[], source_segment_ids=[])], [])
 
 
-def test_clean_version_excludes_marked_content_and_keeps_its_reason() -> None:
+def test_clean_version_excludes_marked_content_from_the_document() -> None:
+    """Removal reasons belong to the rewrite rationale, not to the document itself."""
     retained = SimpleNamespace(id="slot_keep", source_segment_id="seg_keep", slot_type=SimpleNamespace(value="FACT"), normalized_text="Keep this fact.")
     removed = SimpleNamespace(id="slot_remove", source_segment_id="seg_remove", slot_type=SimpleNamespace(value="FACT"), normalized_text="Duplicate fact.")
     label = SimpleNamespace(segment_id="seg_remove", label=SimpleNamespace(value="REDUNDANT"), reason="Same meaning as seg_keep")
@@ -38,20 +39,26 @@ def test_clean_version_excludes_marked_content_and_keeps_its_reason() -> None:
     output = RendererService().render("clean_version", [retained, removed], quality_labels=[label])
 
     assert "Keep this fact." in output.content
-    assert "Duplicate fact." not in "\n".join(section.text for section in output.sections if section.heading != "Removed candidates")
-    notes = next(section for section in output.sections if section.heading == "Removed candidates")
-    assert "Same meaning as seg_keep" in notes.text
-    assert notes.source_slot_ids == ["slot_remove"]
-    assert notes.source_segment_ids == ["seg_remove"]
+    assert "Duplicate fact." not in output.content
+    assert "Same meaning as seg_keep" not in output.content
+    assert all(section.heading != "Removed candidates" for section in output.sections)
 
 
-def test_renderer_applies_requested_audience_and_word_limit() -> None:
+def test_renderer_applies_the_requested_audience() -> None:
     slots = [slot("slot_fact", "FACT", "one two three four five six")]
 
-    output = RendererService().render("executive_summary", slots, audience="CEO", max_words=3)
+    output = RendererService().render("executive_summary", slots, audience="CEO", max_words=6)
 
     assert output.sections[0].heading.startswith("CEO:")
-    assert len(output.sections[0].text.split()) == 3
+    assert output.sections[0].text == "one two three four five six"
+
+
+def test_a_word_limit_drops_an_item_that_does_not_fit_rather_than_truncating_it() -> None:
+    slots = [slot("slot_fact", "FACT", "one two three four five six")]
+
+    output = RendererService().render("executive_summary", slots, max_words=3)
+
+    assert output.sections == []
 
 
 def test_section_lines_align_one_to_one_with_their_source_ids() -> None:
