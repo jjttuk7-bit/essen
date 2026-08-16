@@ -83,10 +83,11 @@ def build_outline(segments: Sequence[object]) -> DocumentOutline:
 
     headings: list[str] = []
     by_segment: dict[str, str] = {}
-    positions = {getattr(segment, "id"): index for index, segment in enumerate(ordered)}
+    # Identity runs before segments are persisted, so ids may not exist yet.
+    positions = {getattr(segment, "id", f"index-{index}"): index for index, segment in enumerate(ordered)}
     current: str | None = None
 
-    for segment in ordered:
+    for index, segment in enumerate(ordered):
         candidates = [line for line in _lines(getattr(segment, "text")) if line not in boilerplate and not line.isdigit()]
         if candidates and _looks_like_heading(candidates[0]):
             heading = _clean(candidates[0])
@@ -97,6 +98,6 @@ def build_outline(segments: Sequence[object]) -> DocumentOutline:
             if heading not in headings:
                 headings.append(heading)
         if current is not None:
-            by_segment[getattr(segment, "id")] = current
+            by_segment[getattr(segment, "id", f"index-{index}")] = current
 
     return DocumentOutline(ordered_headings=headings, _by_segment=by_segment, _positions=positions)

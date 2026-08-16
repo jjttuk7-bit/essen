@@ -114,3 +114,40 @@ def test_malformed_multipart_body_remains_a_400_error() -> None:
         headers={"content-type": "multipart/form-data; boundary=boundary"},
     )
     assert response.status_code == 400
+
+CONTRACT = """소프트웨어 개발 용역 계약서
+
+주식회사 가나(이하 "갑"이라 한다)와 주식회사 다라(이하 "을"이라 한다)는 다음과 같이 계약을 체결한다.
+
+제1조 (목적) 본 계약은 갑이 을에게 위탁하는 용역의 조건을 정함을 목적으로 한다.
+
+제2조 (계약금액) 계약금액은 금 오천만원으로 한다.
+
+제3조 (손해배상) 을이 납기를 지연한 경우 계약금액의 1000분의 3을 배상한다.
+
+제4조 (해지) 갑은 을이 본 계약을 위반한 경우 계약을 해지할 수 있다.
+
+본 계약을 증명하기 위하여 계약서 2부를 작성하여 각각 서명 날인 후 보관한다."""
+
+
+def test_a_contract_is_declined_with_a_reason() -> None:
+    response = _upload_client().post("/documents", files={"file": ("contract.txt", CONTRACT.encode(), "text/plain")})
+
+    assert response.status_code == 422
+    assert "계약서" in response.json()["detail"]
+
+
+def test_a_declined_document_is_never_stored() -> None:
+    """Refusing after storing would keep a contract we told the user we would not handle."""
+    client = _upload_client()
+
+    client.post("/documents", files={"file": ("contract.txt", CONTRACT.encode(), "text/plain")})
+
+    assert client.get("/documents/any/diff").status_code == 404
+
+
+def test_an_ordinary_document_is_still_accepted() -> None:
+    minutes = "2026년 3월 12일\n참석: 김민수, 이서연\n\n안건 1. 일정\n연기하기로 결정했다. 담당: 김민수."
+    response = _upload_client().post("/documents", files={"file": ("minutes.txt", minutes.encode(), "text/plain")})
+
+    assert response.status_code == 201

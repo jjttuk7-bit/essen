@@ -22,6 +22,7 @@ from app.services.diff.service import build_diff, count_dispositions
 from app.services.renderer.outline import build_outline
 from app.services.selection.bottleneck import detect_bottlenecks
 from app.services.selection.identity import identify_document
+from app.services.selection.policy import Handling, policy_for
 from app.services.semantic.service import SemanticExtractionService
 from app.services.signal.service import DiagnosisService
 from app.services.renderer.service import RendererService
@@ -53,6 +54,11 @@ async def upload_document(file: UploadFile, session: Session = Depends(get_sessi
         parsed = DocumentParserService().parse(filename=filename, content=content)
     except ParseError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+
+    # Decided before anything is stored: a document we will not handle is not kept either.
+    policy = policy_for(identify_document(parsed.segments).kind)
+    if policy.handling is Handling.REFUSED:
+        raise HTTPException(status_code=422, detail=policy.reason)
 
     document = Document(title=Path(filename).stem, source_type=parsed.source_type, raw_text=parsed.raw_text)
     document.segments = [
