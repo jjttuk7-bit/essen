@@ -1,21 +1,21 @@
 from collections.abc import Sequence
 
-from app.services.renderer.action_decision import render_action_decision_sheet
 from app.services.renderer.base import RenderedDocument, RenderedSection, UnsupportedClaimError
 from app.services.renderer.clean import render_clean_version
-from app.services.renderer.executive import render_executive_summary
 from app.services.renderer.outline import DocumentOutline
 
 
 class RendererService:
-    _renderers = {"clean_version": render_clean_version, "executive_summary": render_executive_summary, "action_decision_sheet": render_action_decision_sheet}
+    # One document. Offering several forms of the same content made the reader compare
+    # them, which is the kind of work this product exists to remove.
+    _renderers = {"clean_version": render_clean_version}
 
     def render(self, output_type: str, slots: Sequence[object], quality_labels: Sequence[object] = (), audience: str | None = None, max_words: int | None = None, outline: DocumentOutline | None = None, segment_texts: dict[str, str] | None = None) -> RenderedDocument:
         try:
             renderer = self._renderers[output_type]
         except KeyError as error:
             raise ValueError(f"Unsupported output type: {output_type}") from error
-        output = renderer(slots, quality_labels, outline, segment_texts) if output_type == "clean_version" else renderer(slots, segment_texts)
+        output = renderer(slots, quality_labels, outline, segment_texts)
         self.validate_sections(output.sections, slots)
         return self._limit_words(self._apply_audience(output, audience), max_words)
 

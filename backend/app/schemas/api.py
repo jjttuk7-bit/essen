@@ -104,7 +104,7 @@ class RenderResponse(BaseModel):
 class RenderRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    output_type: Literal["clean_version", "executive_summary", "action_decision_sheet"] | None = None
+    output_type: Literal["clean_version"] | None = None
     audience: str | None = None
     max_words: int | None = Field(default=None, ge=1)
 
@@ -121,6 +121,16 @@ class DiffEntryResponse(BaseModel):
     provenance: ProvenanceResponse
 
 
+class BottleneckResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: str
+    label: str
+    share: float
+    detail: str
+    segment_count: int
+
+
 class DiffResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -131,3 +141,4 @@ class DiffResponse(BaseModel):
     output_version: int
     entries: list[DiffEntryResponse]
     counts: dict[str, int]
+    bottlenecks: list[BottleneckResponse]

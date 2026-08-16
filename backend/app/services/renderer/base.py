@@ -29,9 +29,9 @@ class RenderedDocument:
         return [{"heading": section.heading, "text": section.text, "source_slot_ids": section.source_slot_ids, "source_segment_ids": section.source_segment_ids} for section in self.sections]
 
 
-# How many items each form may carry. The product's value is the reduction, so every
-# output is capped rather than growing with the source document.
-ITEM_BUDGETS = {"clean_version": 30, "executive_summary": 8, "action_decision_sheet": 12}
+# The product's value is the reduction, so the document is capped rather than growing
+# with its source.
+ITEM_BUDGETS = {"clean_version": 30}
 
 
 def select_by_importance(slots: Sequence[object], *, limit: int, preserve_order: bool = False) -> list[object]:

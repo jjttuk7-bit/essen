@@ -17,9 +17,9 @@ def test_every_rendered_section_cites_existing_semantic_slots_and_segments() -> 
         slot("slot_risk", "RISK_UNKNOWN", "The delivery date is not confirmed."),
     ]
 
-    output = RendererService().render("executive_summary", slots)
+    output = RendererService().render("clean_version", slots)
 
-    assert output.output_type == "executive_summary"
+    assert output.output_type == "clean_version"
     assert output.sections
     assert all(section.source_slot_ids for section in output.sections)
     assert all(section.source_segment_ids for section in output.sections)
@@ -48,7 +48,7 @@ def test_clean_version_excludes_marked_content_from_the_document() -> None:
 def test_renderer_applies_the_requested_audience() -> None:
     slots = [slot("slot_fact", "FACT", "one two three four five six")]
 
-    output = RendererService().render("executive_summary", slots, audience="CEO", max_words=6)
+    output = RendererService().render("clean_version", slots, audience="CEO", max_words=6)
 
     assert output.sections[0].heading.startswith("CEO:")
     assert output.sections[0].text == "one two three four five six"
@@ -57,7 +57,7 @@ def test_renderer_applies_the_requested_audience() -> None:
 def test_a_word_limit_drops_an_item_that_does_not_fit_rather_than_truncating_it() -> None:
     slots = [slot("slot_fact", "FACT", "one two three four five six")]
 
-    output = RendererService().render("executive_summary", slots, max_words=3)
+    output = RendererService().render("clean_version", slots, max_words=3)
 
     assert output.sections == []
 

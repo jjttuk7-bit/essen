@@ -60,13 +60,14 @@ def test_diff_entries_are_ordered_and_counted_by_disposition() -> None:
     assert set(body["counts"]) == {"REMOVED", "MERGED", "EMPHASIZED", "HELD"}
 
 
-def test_diff_can_target_another_rendered_output_type() -> None:
+def test_diff_reports_the_bottlenecks_the_document_carries() -> None:
     client = _client()
     document_id = _analyzed_and_rendered(client)
 
-    body = client.get(f"/documents/{document_id}/diff", params={"output_type": "executive_summary"}).json()
+    body = client.get(f"/documents/{document_id}/diff").json()
 
-    assert body["output_type"] == "executive_summary"
+    assert isinstance(body["bottlenecks"], list)
+    assert all(finding["label"] and finding["detail"] for finding in body["bottlenecks"])
 
 
 def test_diff_rejects_an_unknown_output_type() -> None:

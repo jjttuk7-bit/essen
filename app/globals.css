@@ -120,3 +120,8 @@ a { color: inherit; }
 .rationale-quote { color: #3a4750; }
 .rationale-why { color: var(--muted); }
 @media (max-width: 560px) { .doc-shell { padding-inline: 1rem; } }
+.bottleneck-list { list-style: none; margin: .9rem 0 1.25rem; padding: 0; display: grid; gap: .7rem; }
+.bottleneck-list li { padding: .7rem .85rem; border: 1px solid var(--hairline); border-radius: .45rem; background: #fbfcfc; }
+.bottleneck-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; margin: 0; font-size: .85rem; }
+.bottleneck-head span { color: var(--warning); font-variant-numeric: tabular-nums; font-weight: 700; }
+.bottleneck-detail { margin: .3rem 0 0; color: var(--muted); font-size: .82rem; line-height: 1.6; }

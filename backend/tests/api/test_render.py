@@ -36,9 +36,7 @@ def test_render_persists_all_requested_provenance_safe_outputs() -> None:
 
     assert response.status_code == 201
     outputs = response.json()["outputs"]
-    assert {output["output_type"] for output in outputs} == {
-        "clean_version", "executive_summary", "action_decision_sheet"
-    }
+    assert {output["output_type"] for output in outputs} == {"clean_version"}
     assert all(section["source_slot_ids"] for output in outputs for section in output["sections"])
 
 
@@ -55,12 +53,12 @@ def test_render_accepts_a_targeted_output_request_and_is_idempotent() -> None:
     document_id = uploaded.json()["document_id"]
     client.post(f"/documents/{document_id}/analyze")
 
-    first = client.post(f"/documents/{document_id}/render", json={"output_type": "executive_summary", "audience": "CEO", "max_words": 50})
-    second = client.post(f"/documents/{document_id}/render", json={"output_type": "executive_summary", "audience": "CEO", "max_words": 50})
+    first = client.post(f"/documents/{document_id}/render", json={"output_type": "clean_version", "audience": "CEO", "max_words": 50})
+    second = client.post(f"/documents/{document_id}/render", json={"output_type": "clean_version", "audience": "CEO", "max_words": 50})
     outputs = client.get(f"/documents/{document_id}/outputs")
 
     assert first.status_code == second.status_code == 201
-    assert [output["output_type"] for output in first.json()["outputs"]] == ["executive_summary"]
+    assert [output["output_type"] for output in first.json()["outputs"]] == ["clean_version"]
     section = first.json()["outputs"][0]["sections"][0]
     assert section["source_segment_ids"]
     assert len(section["source_segment_ids"]) == len(section["source_slot_ids"])
@@ -73,8 +71,8 @@ def test_rendering_different_configs_preserves_versioned_output_history() -> Non
     document_id = uploaded.json()["document_id"]
     client.post(f"/documents/{document_id}/analyze")
 
-    ceo = client.post(f"/documents/{document_id}/render", json={"output_type": "executive_summary", "audience": "CEO", "max_words": 50})
-    operator = client.post(f"/documents/{document_id}/render", json={"output_type": "executive_summary", "audience": "Operator", "max_words": 25})
+    ceo = client.post(f"/documents/{document_id}/render", json={"output_type": "clean_version", "audience": "CEO", "max_words": 50})
+    operator = client.post(f"/documents/{document_id}/render", json={"output_type": "clean_version", "audience": "Operator", "max_words": 25})
     outputs = client.get(f"/documents/{document_id}/outputs").json()["outputs"]
 
     assert ceo.status_code == operator.status_code == 201

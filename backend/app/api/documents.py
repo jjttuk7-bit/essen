@@ -20,6 +20,7 @@ from app.services.parser.base import ParseError
 from app.services.parser.service import DocumentParserService
 from app.services.diff.service import build_diff, count_dispositions
 from app.services.renderer.outline import build_outline
+from app.services.selection.bottleneck import detect_bottlenecks
 from app.services.semantic.service import SemanticExtractionService
 from app.services.signal.service import DiagnosisService
 from app.services.renderer.service import RendererService
@@ -229,7 +230,7 @@ def render_document(document_id: str, request: RenderRequest | None = None, sess
     outline = build_outline(segments)
     segment_texts = {segment.id: segment.text for segment in segments}
     requested = request or RenderRequest()
-    output_types = [requested.output_type] if requested.output_type else ["clean_version", "executive_summary", "action_decision_sheet"]
+    output_types = [requested.output_type or "clean_version"]
     outputs: list[RenderedOutput] = []
     renderer = RendererService()
     try:
@@ -268,7 +269,7 @@ def render_document(document_id: str, request: RenderRequest | None = None, sess
 @router.get("/{document_id}/diff", response_model=DiffResponse)
 def get_diff(
     document_id: str,
-    output_type: Literal["clean_version", "executive_summary", "action_decision_sheet"] = Query(default="clean_version"),
+    output_type: Literal["clean_version"] = Query(default="clean_version"),
     session: Session = Depends(get_session),
 ) -> DiffResponse:
     document, run = _completed_analysis(session, document_id)
@@ -301,6 +302,10 @@ def get_diff(
             for entry in entries
         ],
         counts=count_dispositions(entries),
+        bottlenecks=[
+            {"kind": finding.kind.value, "label": finding.label, "share": finding.share, "detail": finding.detail, "segment_count": len(finding.segment_ids)}
+            for finding in detect_bottlenecks(segments)
+        ],
     )
 
 

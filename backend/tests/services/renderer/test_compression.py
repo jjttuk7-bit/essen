@@ -44,19 +44,16 @@ def test_every_output_stays_inside_its_item_budget() -> None:
         assert _item_count(document) <= budget, output_type
 
 
-def test_the_executive_summary_is_the_shortest_form() -> None:
-    slots = _slots(60)
-    renderer = RendererService()
+def test_a_long_document_is_cut_down_hard() -> None:
+    document = RendererService().render("clean_version", _slots(60))
 
-    executive = _item_count(renderer.render("executive_summary", slots))
-    clean = _item_count(renderer.render("clean_version", slots))
-
-    assert executive < clean
+    assert _item_count(document) <= ITEM_BUDGETS["clean_version"]
+    assert _item_count(document) < 60
 
 
 def test_outputs_no_longer_dump_unmatched_slots_into_a_catch_all() -> None:
     """A catch-all section defeats compression: nothing is ever left out."""
-    document = RendererService().render("executive_summary", _slots(60, slot_type="PURPOSE"))
+    document = RendererService().render("clean_version", _slots(60, slot_type="PURPOSE"))
 
     assert "Source-backed details" not in {section.heading for section in document.sections}
 
@@ -68,7 +65,7 @@ def test_a_short_document_is_returned_whole() -> None:
 
 
 def test_compression_still_produces_something_for_low_signal_input() -> None:
-    document = RendererService().render("action_decision_sheet", _slots(5, slot_type="CONTEXT"))
+    document = RendererService().render("clean_version", _slots(5, slot_type="CONTEXT"))
 
     assert document.sections
 
