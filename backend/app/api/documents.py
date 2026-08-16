@@ -219,6 +219,9 @@ def _output_response(output: RenderedOutput) -> RenderedOutputResponse:
 @router.post("/{document_id}/render", response_model=RenderResponse, status_code=status.HTTP_201_CREATED)
 def render_document(document_id: str, request: RenderRequest | None = None, session: Session = Depends(get_session)) -> RenderResponse:
     document, run = _completed_analysis(session, document_id)
+    # Renderers drop redundant and generic material using quality labels, which only the
+    # diagnosis pass writes. Without this the first render would silently keep everything.
+    DiagnosisService().diagnose_document(session, document_id)
     slots = list(session.scalars(select(SemanticSlot).where(SemanticSlot.analysis_run_id == run.id)))
     labels = list(session.scalars(select(QualityLabel).where(QualityLabel.analysis_run_id == run.id)))
     requested = request or RenderRequest()

@@ -89,3 +89,39 @@ def test_diff_requires_a_rendered_output() -> None:
 
 def test_diff_returns_not_found_for_an_unknown_document() -> None:
     assert _client().get("/documents/missing/diff").status_code == 404
+
+
+REPEATED = (
+    b"Decision: we will launch the pilot in Q3.\n\n"
+    b"Revenue grew 20% year over year according to the finance report.\n\n"
+    b"Revenue grew 20% year over year according to the finance report."
+)
+
+
+def test_rendering_removes_labeled_content_without_a_prior_diagnosis_call() -> None:
+    """Quality labels must exist by render time, not only after /diagnosis is requested."""
+    client = _client()
+    document_id = client.post("/documents", files={"file": ("plan.txt", REPEATED, "text/plain")}).json()["document_id"]
+    client.post(f"/documents/{document_id}/analyze")
+
+    rendered = client.post(f"/documents/{document_id}/render")
+    body = client.get(f"/documents/{document_id}/diff").json()
+
+    assert rendered.status_code == 201
+    assert body["counts"]["REMOVED"] == 1
+    removed = [entry for entry in body["entries"] if entry["disposition"] == "REMOVED"]
+    assert removed[0]["reason"]
+    assert removed[0]["rendered_headings"] == []
+
+
+def test_render_reaches_the_same_result_whether_or_not_diagnosis_ran_first() -> None:
+    def counts(diagnose_first: bool) -> dict[str, int]:
+        client = _client()
+        document_id = client.post("/documents", files={"file": ("plan.txt", REPEATED, "text/plain")}).json()["document_id"]
+        client.post(f"/documents/{document_id}/analyze")
+        if diagnose_first:
+            client.get(f"/documents/{document_id}/diagnosis")
+        client.post(f"/documents/{document_id}/render")
+        return client.get(f"/documents/{document_id}/diff").json()["counts"]
+
+    assert counts(diagnose_first=True) == counts(diagnose_first=False)
