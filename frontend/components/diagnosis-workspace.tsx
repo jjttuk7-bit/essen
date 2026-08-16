@@ -1,0 +1,11 @@
+"use client";
+import { useEffect, useState } from "react";
+import { Diagnosis, getDiagnosis, getSemanticMap, SemanticMap } from "@/lib/api";
+const scoreCards: Array<[keyof Pick<Diagnosis, "signal_ratio" | "redundancy_ratio" | "evidence_coverage" | "decision_completeness">, string]> = [["signal_ratio", "Signal ratio"], ["redundancy_ratio", "Redundancy"], ["evidence_coverage", "Evidence"], ["decision_completeness", "Decision"]];
+export function DiagnosisWorkspace({ documentId }: { documentId: string }) {
+ const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null); const [semanticMap, setSemanticMap] = useState<SemanticMap | null>(null); const [error, setError] = useState<string | null>(null);
+ useEffect(() => { Promise.all([getDiagnosis(documentId), getSemanticMap(documentId)]).then(([nextDiagnosis, nextMap]) => { setDiagnosis(nextDiagnosis); setSemanticMap(nextMap); }).catch((cause) => setError(cause instanceof Error ? cause.message : "결과를 불러오지 못했습니다.")); }, [documentId]);
+ if (error) return <main className="result-shell"><p role="alert">{error}</p></main>;
+ if (!diagnosis || !semanticMap) return <main className="result-shell"><p aria-live="polite">문서 진단을 불러오는 중…</p></main>;
+ return <main className="result-shell"><header className="result-head"><a href="/">← New analysis</a><p>DOCUMENT / {documentId.slice(0, 8)}</p></header><section className="result-intro"><p className="eyebrow">DIAGNOSIS</p><h1><span>{diagnosis.document_signal_score}</span> / 100</h1><p>결정에 바로 쓸 수 있는 정보의 밀도입니다.</p></section><section className="score-grid" aria-label="Document quality scores">{scoreCards.map(([key, label]) => <article key={key}><p>{label}</p><strong>{Math.round(diagnosis[key] * 100)}%</strong></article>)}</section><section className="result-columns"><section><p className="eyebrow">MISSING DECISION INPUTS</p><div className="gap-list">{diagnosis.gaps.length ? diagnosis.gaps.map((gap) => <span key={gap}>{gap}</span>) : <span>NONE</span>}</div></section><section><p className="eyebrow">SEMANTIC EVIDENCE</p><ul className="slot-list">{semanticMap.slots.map((slot) => <li key={slot.id}><b>{slot.slot}</b><span>{slot.text}</span></li>)}</ul></section></section></main>;
+}
