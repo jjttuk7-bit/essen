@@ -35,3 +35,16 @@ def test_missing_cors_origin_allows_no_browser_origin(monkeypatch) -> None:
     monkeypatch.delenv("CORS_ORIGIN", raising=False)
 
     assert get_settings().cors_origin == ""
+
+
+def test_openai_timeout_defaults_to_a_document_sized_budget(monkeypatch) -> None:
+    """A whole-document extraction does not finish inside a short socket timeout."""
+    monkeypatch.delenv("OPENAI_TIMEOUT_SECONDS", raising=False)
+
+    assert get_settings().openai_timeout_seconds == 120
+
+
+def test_openai_timeout_is_overridden_by_the_environment(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_TIMEOUT_SECONDS", "45")
+
+    assert get_settings().openai_timeout_seconds == 45

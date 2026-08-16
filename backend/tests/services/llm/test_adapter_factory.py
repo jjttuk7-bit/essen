@@ -59,3 +59,9 @@ def test_openai_adapter_rejects_provider_slot_with_unknown_source_segment(monkey
         assert "source_segment_id" in str(error)
     else:
         raise AssertionError("Provider slots with unknown sources must be rejected")
+
+
+def test_factory_passes_the_configured_timeout_to_the_adapter() -> None:
+    adapter = create_llm_adapter(_settings(openai_api_key="sk-test-key", openai_timeout_seconds=45))
+
+    assert adapter.timeout == 45

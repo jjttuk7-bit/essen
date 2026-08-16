@@ -3,6 +3,7 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+from app.core.config import DEFAULT_OPENAI_TIMEOUT_SECONDS
 from app.schemas.llm import AnalysisRequest
 from app.schemas.semantic import ValidatedAnalysis, validate_analysis_source_context
 from app.services.llm.base import LLMAdapter
@@ -12,10 +13,11 @@ from app.services.llm.strict_schema import ANALYSIS_JSON_SCHEMA
 class OpenAICompatibleLLMAdapter(LLMAdapter):
     """OpenAI chat-completions adapter that requires schema-conforming JSON."""
 
-    def __init__(self, *, base_url: str, api_key: str, model: str) -> None:
+    def __init__(self, *, base_url: str, api_key: str, model: str, timeout: int = DEFAULT_OPENAI_TIMEOUT_SECONDS) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = model
+        self.timeout = timeout
 
     def analyze(self, request: AnalysisRequest) -> ValidatedAnalysis:
         if not self.base_url or not self.api_key or not self.model:
@@ -27,7 +29,7 @@ class OpenAICompatibleLLMAdapter(LLMAdapter):
         }
         http_request = Request(f"{self.base_url}/chat/completions", data=json.dumps(payload).encode("utf-8"), headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}, method="POST")
         try:
-            with urlopen(http_request, timeout=30) as response:  # noqa: S310 - configured provider endpoint
+            with urlopen(http_request, timeout=self.timeout) as response:  # noqa: S310 - configured provider endpoint
                 envelope = json.loads(response.read().decode("utf-8"))
         except HTTPError as error:
             # urllib's HTTPError renders as a bare status line; the provider explains the
