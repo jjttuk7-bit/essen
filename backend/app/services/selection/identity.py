@@ -21,7 +21,8 @@ SENTENCE = re.compile(r"(?<=다\.)\s+|(?<=[.!?])\s+|\n")
 SELF_REFERENCE = re.compile(r"(이|본)\s*(문서|플레이북|보고서|가이드|안내서|자료|글|계획서|제안서)")
 PURPOSE_MARKER = re.compile(r"(목적은|위한|위해|채우려|다루려|설명하려|정리한|안내한|목표는|하고자)")
 # Reading far enough in to find a preamble, but not so far that a body sentence qualifies.
-PURPOSE_LOOKAHEAD = 6
+# Measured in characters: how finely a document happens to segment is not a signal.
+PURPOSE_LOOKAHEAD_CHARS = 3000
 
 # Measured against real documents rather than guessed. A guide can be organized around
 # questions and still be a guide, so a questionnaire has to be almost nothing but
@@ -125,14 +126,22 @@ def _kind(sentences: Sequence[str], minutes: bool = False) -> str:
 
 def _purpose(segments: Sequence[object]) -> str | None:
     """Quote the document's own sentence about what it is for, if it has one."""
-    for segment in segments[:PURPOSE_LOOKAHEAD]:
-        sentences = _sentences(getattr(segment, "text", ""))
-        for index, sentence in enumerate(sentences):
-            if not (SELF_REFERENCE.search(sentence) and PURPOSE_MARKER.search(sentence)):
-                continue
-            following = sentences[index + 1] if index + 1 < len(sentences) else ""
-            # Still verbatim: the two sentences are contiguous in the source.
-            return f"{sentence} {following}".strip() if CONTINUATION.match(following) else sentence
+    opening: list[str] = []
+    seen = 0
+    for segment in segments:
+        text = getattr(segment, "text", "")
+        seen += len(text)
+        if seen > PURPOSE_LOOKAHEAD_CHARS:
+            break
+        opening.extend(_sentences(text))
+
+    for index, sentence in enumerate(opening):
+        if not (SELF_REFERENCE.search(sentence) and PURPOSE_MARKER.search(sentence)):
+            continue
+        # The thought can continue past a segment boundary, so the opening is read as one
+        # run of sentences. Still verbatim: the two are contiguous in the source.
+        following = opening[index + 1] if index + 1 < len(opening) else ""
+        return f"{sentence} {following}".strip() if CONTINUATION.match(following) else sentence
     return None
 
 
