@@ -13,5 +13,16 @@ describe("UploadForm", () => {
   it("offers a labeled document picker and an analysis action", () => { render(<UploadForm />); expect(screen.getByLabelText(/분석할 문서/i)).toHaveAttribute("accept", ".txt,.md,.markdown,.pdf"); expect(screen.getByRole("button", { name: /analyze document/i })).toBeVisible(); });
   it("uploads, analyzes, then navigates to the result workspace", async () => { uploadDocument.mockResolvedValue({ document_id: "doc-1" }); analyzeDocument.mockResolvedValue({}); render(<UploadForm />); selectTextFile(); fireEvent.click(screen.getByRole("button", { name: /analyze document/i })); await waitFor(() => expect(analyzeDocument).toHaveBeenCalledWith("doc-1")); expect(routerPush).toHaveBeenCalledWith("/documents/doc-1"); });
   it("reports an API error to the user", async () => { uploadDocument.mockRejectedValue(new Error("Upload exceeds the 10 MB size limit")); render(<UploadForm />); selectTextFile(); fireEvent.click(screen.getByRole("button", { name: /analyze document/i })); expect(await screen.findByRole("alert")).toHaveTextContent("10 MB"); });
+  it("keeps the analysis action named and announces upload progress", () => {
+    uploadDocument.mockReturnValue(new Promise(() => {}));
+    render(<UploadForm />);
+    selectTextFile();
+
+    fireEvent.click(screen.getByRole("button", { name: /analyze document/i }));
+
+    expect(screen.getByRole("button", { name: /analyze document/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /analyze document/i })).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByText(/문서를 읽고 있습니다/)).toHaveAttribute("aria-live", "polite");
+  });
   it("ignores a second submit while the first request is pending", () => { uploadDocument.mockReturnValue(new Promise(() => {})); render(<UploadForm />); selectTextFile(); const form = screen.getByRole("button", { name: /analyze document/i }).closest("form")!; fireEvent.submit(form); fireEvent.submit(form); expect(uploadDocument).toHaveBeenCalledTimes(1); });
 });

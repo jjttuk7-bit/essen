@@ -61,7 +61,7 @@ export function UploadForm() {
       </label>
       <input id={inputId} name="document" className="sr-only" type="file" accept=".txt,.md,.markdown,.pdf" onChange={onFileChange} />
       {file && <p className="selection" aria-label="Selected file">{file.name} <span>{formatBytes(file.size)}</span></p>}
-      <button className="analyze-button" type="submit" aria-describedby={error ? "upload-error" : undefined}>
+      <button className="analyze-button" type="submit" disabled={busy} aria-busy={busy} aria-label="Analyze document" aria-describedby={error ? "upload-error" : undefined}>
         {busy ? "분석 준비 중" : "Analyze document"} <span aria-hidden="true">→</span>
       </button>
       <p className="status" aria-live="polite">{statusMessage}</p>
