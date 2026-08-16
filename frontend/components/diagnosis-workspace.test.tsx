@@ -9,6 +9,7 @@ import { DiagnosisWorkspace } from "./diagnosis-workspace";
 const outputs = {
   document_id: "doc-1", analysis_run_id: "run-1", outputs: [
     { id: "out-clean", output_type: "clean_version", content: "", version: 2, audience: null, max_words: null, render_config_hash: "hash", sections: [
+      { heading: "핵심 2줄", text: "Launch the pilot in Q3.\nKim owns delivery.", source_slot_ids: ["s1", "s2"], source_segment_ids: ["S-01", "S-02"] },
       { heading: "Decision", text: "Launch the pilot in Q3.\nKim owns delivery.", source_slot_ids: ["s1", "s2"], source_segment_ids: ["S-01", "S-02"] },
     ] },
   ],
@@ -43,12 +44,23 @@ describe("DiagnosisWorkspace", () => {
     expect(items[1]).toHaveTextContent("Kim owns delivery.");
   });
 
+  it("opens with the document's core before the document itself", async () => {
+    getOutputs.mockResolvedValue(outputs);
+    getDiff.mockResolvedValue(diff);
+
+    render(<DiagnosisWorkspace documentId="doc-1" />);
+    await screen.findAllByText("Launch the pilot in Q3.");
+
+    const headings = screen.getAllByRole("heading", { level: 2 });
+    expect(headings[0]).toHaveTextContent("핵심 2줄");
+  });
+
   it("does not show analysis machinery on the document page", async () => {
     getOutputs.mockResolvedValue(outputs);
     getDiff.mockResolvedValue(diff);
 
     render(<DiagnosisWorkspace documentId="doc-1" />);
-    await screen.findByText("Launch the pilot in Q3.");
+    await screen.findAllByText("Launch the pilot in Q3.");
 
     expect(screen.queryByText(/Source S-01/)).toBeNull();
     expect(screen.queryByText(/Slot s1/)).toBeNull();
@@ -61,7 +73,7 @@ describe("DiagnosisWorkspace", () => {
     getDiff.mockResolvedValue(diff);
 
     render(<DiagnosisWorkspace documentId="doc-1" />);
-    await screen.findByText("Launch the pilot in Q3.");
+    await screen.findAllByText("Launch the pilot in Q3.");
 
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(screen.queryByRole("tab")).toBeNull();

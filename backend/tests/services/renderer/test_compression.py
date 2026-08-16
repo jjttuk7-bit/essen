@@ -20,7 +20,8 @@ def _slots(count: int, slot_type: str = "FACT") -> list[FakeSlot]:
 
 
 def _item_count(document) -> int:
-    return sum(len(section.text.split("\n")) for section in document.sections)
+    """Distinct source material: the opening lines repeat the body, so they count once."""
+    return len({slot_id for section in document.sections for slot_id in section.source_slot_ids})
 
 
 def test_select_by_importance_keeps_the_highest_scoring_items() -> None:
@@ -84,3 +85,40 @@ def test_a_word_limit_still_bounds_the_output() -> None:
     document = RendererService().render("clean_version", _slots(30), max_words=6)
 
     assert sum(len(section.text.split()) for section in document.sections) <= 6
+
+
+class TestKeyPoints:
+    """The reader should learn what the document says before reading the document."""
+
+    def test_the_document_opens_with_a_three_line_core(self) -> None:
+        document = RendererService().render("clean_version", _slots(20))
+
+        assert document.sections[0].heading == "핵심 3줄"
+        assert len(document.sections[0].text.split("\n")) == 3
+
+    def test_the_core_lines_are_the_strongest_material(self) -> None:
+        slots = _slots(20)
+        document = RendererService().render("clean_version", slots)
+
+        opening = set(document.sections[0].source_slot_ids)
+        assert opening == {slot.id for slot in slots[-3:]}
+
+    def test_the_core_keeps_source_order(self) -> None:
+        document = RendererService().render("clean_version", _slots(20))
+
+        assert document.sections[0].source_slot_ids == sorted(document.sections[0].source_slot_ids, key=lambda slot_id: int(slot_id.split("-")[1]))
+
+    def test_a_short_document_opens_with_what_it_has(self) -> None:
+        document = RendererService().render("clean_version", _slots(2))
+
+        assert document.sections[0].heading == "핵심 2줄"
+
+    def test_the_core_is_quoted_from_the_document_not_written_anew(self) -> None:
+        slots = _slots(20)
+        document = RendererService().render("clean_version", slots)
+
+        texts = {slot.normalized_text for slot in slots}
+        assert all(line in texts for line in document.sections[0].text.split("\n"))
+
+    def test_an_empty_document_has_no_core_section(self) -> None:
+        assert RendererService().render("clean_version", []).sections == []

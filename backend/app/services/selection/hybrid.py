@@ -107,7 +107,14 @@ def select_core(
     if not candidates:
         return []
 
-    position = (lambda segment_id: outline.position_of(segment_id)) if outline is not None else (lambda _: 0)
+    # Without an outline the source's own order is the input order; keeping it is what
+    # makes the result read as the same document rather than a ranked list.
+    arrival = {id(item): index for index, item in enumerate(assessed)}
+    position = (
+        (lambda item: outline.position_of(getattr(item.slot, "source_segment_id", "")))
+        if outline is not None
+        else (lambda item: arrival[id(item)])
+    )
     heading_of = (lambda segment_id: outline.heading_for(segment_id) or "") if outline is not None else (lambda _: "")
 
     sections: dict[str, list[Selection]] = {}
@@ -116,7 +123,7 @@ def select_core(
 
     kept: list[Selection] = []
     for heading, limit in _allocate(sections, budget).items():
-        ranked = sorted(sections[heading], key=lambda item: (-item.score, position(getattr(item.slot, "source_segment_id", ""))))
+        ranked = sorted(sections[heading], key=lambda item: (-item.score, position(item)))
         kept.extend(ranked[:limit])
 
-    return sorted(kept, key=lambda item: position(getattr(item.slot, "source_segment_id", "")))
+    return sorted(kept, key=position)

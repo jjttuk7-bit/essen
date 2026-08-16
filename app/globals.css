@@ -125,3 +125,6 @@ a { color: inherit; }
 .bottleneck-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; margin: 0; font-size: .85rem; }
 .bottleneck-head span { color: var(--warning); font-variant-numeric: tabular-nums; font-weight: 700; }
 .bottleneck-detail { margin: .3rem 0 0; color: var(--muted); font-size: .82rem; line-height: 1.6; }
+.doc-body .doc-section:first-child { padding: 1rem 1.15rem; margin-bottom: 2rem; border-left: 3px solid var(--accent); background: #fafbfb; }
+.doc-body .doc-section:first-child h2 { margin-top: 0; color: var(--accent); font-size: .82rem; letter-spacing: .06em; }
+.doc-body .doc-section:first-child li { font-weight: 500; }

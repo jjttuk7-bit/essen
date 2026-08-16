@@ -5,6 +5,8 @@ from app.services.renderer.outline import DocumentOutline
 from app.services.selection.hybrid import select_core
 
 REMOVABLE_LABELS = {"REDUNDANT", "GENERIC", "RHETORICAL", "UNSUPPORTED", "OFF_PURPOSE"}
+# The reader should learn what the document says before reading the document.
+KEY_POINTS = 3
 # Fallback grouping for sources that carry no headings of their own.
 HEADINGS = (
     ("Problem", {"PROBLEM"}),
@@ -33,10 +35,27 @@ def render_clean_version(slots: Sequence[object], quality_labels: Sequence[objec
     kept_slots = [slot for slot in slots if getattr(slot, "source_segment_id", None) not in removed_segment_ids]
     # The clean version is the same document made shorter, so selection carries the
     # outline: every source section that has a candidate keeps at least one.
-    shortlist = [item.slot for item in select_core(kept_slots, segment_texts=segment_texts or {}, outline=outline, budget=ITEM_BUDGETS["clean_version"])]
+    selections = select_core(kept_slots, segment_texts=segment_texts or {}, outline=outline, budget=ITEM_BUDGETS["clean_version"])
+    shortlist = [item.slot for item in selections]
 
     sections = _source_sections(shortlist, outline) if outline and outline.ordered_headings else _slot_type_sections(shortlist)
+    if opening := _key_points(selections):
+        sections.insert(0, opening)
     return RenderedDocument(output_type="clean_version", sections=sections)
+
+
+def _key_points(selections: Sequence[object]) -> object | None:
+    """Open with the document's strongest lines, so the core arrives before the document.
+
+    These are quoted, not written: the same passages the body carries, lifted to the front.
+    They stay in the body too — a summary that removed its own lines from the document
+    would leave the reader holding two half-documents.
+    """
+    strongest = sorted(selections, key=lambda item: -getattr(item, "score", 0.0))[:KEY_POINTS]
+    if not strongest:
+        return None
+    ordered = [item.slot for item in sorted(strongest, key=lambda item: selections.index(item))]
+    return make_section(f"핵심 {len(ordered)}줄", ordered)
 
 
 def _source_sections(shortlist: Sequence[object], outline: DocumentOutline) -> list:
