@@ -6,7 +6,7 @@ from app.core.config import get_settings
 def create_app() -> FastAPI:
     app = FastAPI(title="Human Layer API")
     settings = get_settings()
-    app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins), allow_credentials=False, allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["Content-Type"])
+    app.add_middleware(CORSMiddleware, allow_origins=[settings.cors_origin] if settings.cors_origin else [], allow_credentials=False, allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["Content-Type"])
     app.include_router(router)
     return app
 app = create_app()

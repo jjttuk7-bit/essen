@@ -4,7 +4,7 @@ from app.main import create_app
 
 
 def test_cors_allows_configured_frontend_origin(monkeypatch):
-    monkeypatch.setenv("HUMAN_LAYER_CORS_ORIGINS", "https://app.example.com")
+    monkeypatch.setenv("CORS_ORIGIN", "https://app.example.com")
 
     response = TestClient(create_app()).options(
         "/documents",
@@ -16,7 +16,7 @@ def test_cors_allows_configured_frontend_origin(monkeypatch):
 
 
 def test_cors_rejects_unconfigured_origin(monkeypatch):
-    monkeypatch.setenv("HUMAN_LAYER_CORS_ORIGINS", "https://app.example.com")
+    monkeypatch.setenv("CORS_ORIGIN", "https://app.example.com")
 
     response = TestClient(create_app()).options(
         "/documents",
