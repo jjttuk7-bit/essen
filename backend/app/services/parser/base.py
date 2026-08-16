@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import statistics
+import unicodedata
 
 from dataclasses import dataclass
 from typing import Protocol
@@ -57,11 +58,20 @@ _UNBROKEN_MIN_LINES = 4
 # A wrapped line is long by definition — it filled the column. Where the typical line
 # is short, extraction is already emitting one item per line and recovering breaks by
 # column width would only fragment a list or a flattened table.
-_WRAPPED_PROSE_MEDIAN = 20
-# The column width, read off the document's own lines rather than assumed.
-_WRAP_WIDTH_QUANTILE = 0.9
-_WRAP_WIDTH_RATIO = 0.85
+_WRAPPED_PROSE_MEDIAN = 30
+# Share of the widest line a line must reach to count as full. Loose, because a page's
+# header block is set narrower than its body and both wrap.
+_WRAP_WIDTH_RATIO = 0.55
 _HANGUL = re.compile(r"[가-힣]")
+
+
+def _display_width(text: str) -> int:
+    """Rendered width, not character count: a Hangul syllable occupies two columns.
+
+    A full line of Korean holds about half as many characters as a full line of Latin, so
+    counting characters makes mixed text look ragged where it is not.
+    """
+    return sum(2 if unicodedata.east_asian_width(character) in "WF" else 1 for character in text)
 
 
 def _split_unbroken(block: str) -> list[str]:
@@ -75,20 +85,21 @@ def _split_unbroken(block: str) -> list[str]:
     lines = [line.strip() for line in block.split("\n") if line.strip()]
     if len(lines) < _UNBROKEN_MIN_LINES:
         return [block.strip()]
-    if statistics.median(len(line) for line in lines) < _WRAPPED_PROSE_MEDIAN:
+    if statistics.median(_display_width(line) for line in lines) < _WRAPPED_PROSE_MEDIAN:
         return [block.strip()]
 
-    # A line that stopped short of the column width ended because its content ended, not
-    # because it ran out of room, so only a full line can continue onto the next.
-    widths = sorted(len(line) for line in lines)
-    wrap_width = widths[int(len(widths) * _WRAP_WIDTH_QUANTILE) - 1] * _WRAP_WIDTH_RATIO
+    # A line that stopped well short of the widest line on the page ended because its
+    # content ended, not because it ran out of room. The bar is deliberately loose: a page
+    # sets its header block narrower than its body, and a strict one misses every wrap in
+    # the narrower column.
+    wrap_width = max(_display_width(line) for line in lines) * _WRAP_WIDTH_RATIO
 
     paragraphs: list[list[str]] = []
     for line in lines:
         previous = paragraphs[-1][-1] if paragraphs else ""
         continues = (
             bool(paragraphs)
-            and len(previous) >= wrap_width
+            and _display_width(previous) >= wrap_width
             and not _CLOSES_SENTENCE.search(previous)
             and not _OPENS_BLOCK.match(line)
         )

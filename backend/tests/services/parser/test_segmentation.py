@@ -73,8 +73,13 @@ class TestLeavingWellFormedTextAlone:
 
 
 class TestOnlyFullLinesWrap:
-    """A line that stopped short of the column width ended because its content ended."""
+    """A line that stopped short of the column width ended because its content ended.
 
+    The header is given with the body that follows it on the page, because the column
+    width is read from the widest line — see TestNarrowDocumentsAreAmbiguous.
+    """
+
+    _BODY = ["신제품은 복잡한 7 단계 루틴보다 매일 부담 없이 지키는 3 단계 기본 관리를 핵심 가치로 설정하고 첫 출시 품목을 좁힌다."] * 4
     HEADER = "\n".join([
         "20 대 여성을 위한 기초 스킨케어 신제품 개발 회의록",
         "회의 일시 2026 년 8 월 14 일(금) 14:00~15:30",
@@ -84,6 +89,7 @@ class TestOnlyFullLinesWrap:
         "향 확정",
         "참석자 김서현(상품기획), 박지민(R&D), 이나영(마케팅), 최유진(디자인), 정",
         "민호(영업), 한소라(QA)",
+        *_BODY,
     ])
 
     def test_short_header_lines_stay_separate(self) -> None:
@@ -132,3 +138,60 @@ class TestOnlyWrappedProseNeedsRecovering:
         ])
 
         assert len(segments_for_text(prose)) > 1
+
+
+class TestColumnWidthVariesWithinAPage:
+    """A header block and the body beneath it are set to different widths."""
+
+    MIXED = "\n".join([
+        "회의 일시 2026 년 8 월 14 일(금) 14:00~15:30",
+        "회의 장소 본사 4 층 Project Room B",
+        "회의 목적 20 대 여성 타깃 기초 스킨케어 라인의 1 차 제품 콘셉트 및 개발 방",
+        "향 확정",
+        "참석자 김서현(상품기획), 박지민(R&D), 이나영(마케팅), 최유진(디자인), 정",
+        "민호(영업), 한소라(QA)",
+        "신제품은 복잡한 7 단계 루틴보다 매일 부담 없이 지키는 3 단계 기본 관리를 핵심 가치로 설정하고 첫 출시",
+        "품목은 저자극 수분 토너와 장벽 보습 세럼과 데일리 수분 크림의 3 종으로 좁힌다.",
+    ])
+
+    def test_a_wrap_in_the_narrower_header_is_still_joined(self) -> None:
+        texts = [segment.text for segment in segments_for_text(self.MIXED)]
+
+        assert any(text.endswith("개발 방향 확정") for text in texts), texts
+        assert any("정민호(영업), 한소라(QA)" in text for text in texts), texts
+
+    def test_a_complete_short_field_is_not_swallowed(self) -> None:
+        texts = [segment.text for segment in segments_for_text(self.MIXED)]
+
+        assert "회의 장소 본사 4 층 Project Room B" in texts
+
+    def test_the_wider_body_is_not_disturbed(self) -> None:
+        texts = [segment.text for segment in segments_for_text(self.MIXED)]
+
+        assert any(text.startswith("신제품은 복잡한") and text.endswith("좁힌다.") for text in texts), texts
+
+
+class TestNarrowDocumentsAreAmbiguous:
+    """A known limit, pinned so a change to it is a decision rather than a surprise.
+
+    Column width is read from the widest line present. Where a document is nothing but
+    narrow field lines, a full-width field is indistinguishable from a wrapped one, and
+    adjacent fields merge. Real pages carry a body that settles the width.
+    """
+
+    FIELDS_ONLY = "\n".join([
+        "회의 일시 2026 년 8 월 14 일(금) 14:00~15:30",
+        "회의 장소 본사 4 층 Project Room B",
+        "작성자 김서현",
+        "문서 상태 TEST / 내부 검토용",
+    ])
+
+    def test_fields_alone_can_merge(self) -> None:
+        assert len(segments_for_text(self.FIELDS_ONLY)) < 4
+
+    def test_the_same_fields_separate_once_a_body_sets_the_width(self) -> None:
+        body = "\n".join(["신제품은 복잡한 7 단계 루틴보다 매일 부담 없이 지키는 3 단계 기본 관리를 핵심 가치로 설정하고 첫 출시 품목을 좁힌다."] * 4)
+        texts = [segment.text for segment in segments_for_text(f"{self.FIELDS_ONLY}\n{body}")]
+
+        assert "회의 장소 본사 4 층 Project Room B" in texts
+        assert "작성자 김서현" in texts
