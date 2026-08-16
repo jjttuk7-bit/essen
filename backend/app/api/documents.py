@@ -240,7 +240,9 @@ def render_document(document_id: str, request: RenderRequest | None = None, sess
             config_hash = hashlib.sha256(json.dumps(config, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
             output = session.scalar(select(RenderedOutput).where(RenderedOutput.analysis_run_id == run.id, RenderedOutput.output_type == output_type, RenderedOutput.render_config_hash == config_hash))
             if output is None:
-                rendered = renderer.render(output_type, slots, labels, requested.audience, requested.max_words, outline, segment_texts)
+                # The identity block above the document already quotes the purpose sentence.
+                purpose = identify_document(segments).purpose
+                rendered = renderer.render(output_type, slots, labels, requested.audience, requested.max_words, outline, segment_texts, [purpose] if purpose else [])
                 provenance = [{"section_index": i, "heading": section.heading, "text": section.text, "source_slot_id": slot_id, "source_segment_id": segment_id} for i, section in enumerate(rendered.sections) for slot_id, segment_id in zip(section.source_slot_ids, section.source_segment_ids, strict=True)]
                 for _ in range(3):
                     version = (session.scalar(select(func.max(RenderedOutput.version)).where(RenderedOutput.analysis_run_id == run.id, RenderedOutput.output_type == output_type)) or 0) + 1

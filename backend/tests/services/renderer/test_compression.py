@@ -122,3 +122,34 @@ class TestKeyPoints:
 
     def test_an_empty_document_has_no_core_section(self) -> None:
         assert RendererService().render("clean_version", []).sections == []
+
+
+class TestNoLineIsShownTwiceOnThePage:
+    """The identity block quotes the document's purpose; the body must not repeat it."""
+
+    def test_a_line_already_shown_elsewhere_is_dropped(self) -> None:
+        slots = _slots(6)
+        shown = slots[3].normalized_text
+
+        document = RendererService().render("clean_version", slots, shown_elsewhere=[shown])
+
+        assert shown not in document.content
+
+    def test_whitespace_differences_do_not_defeat_the_check(self) -> None:
+        slots = _slots(6)
+
+        document = RendererService().render("clean_version", slots, shown_elsewhere=[f"  {slots[3].normalized_text}\n "])
+
+        assert slots[3].normalized_text not in document.content
+
+    def test_the_rest_of_the_document_is_untouched(self) -> None:
+        slots = _slots(6)
+
+        document = RendererService().render("clean_version", slots, shown_elsewhere=[slots[3].normalized_text])
+
+        assert slots[5].normalized_text in document.content
+
+    def test_nothing_is_dropped_when_nothing_was_shown_elsewhere(self) -> None:
+        slots = _slots(6)
+
+        assert RendererService().render("clean_version", slots).content

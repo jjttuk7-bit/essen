@@ -23,7 +23,7 @@ def _value(value: object) -> str:
     return getattr(value, "value", str(value))
 
 
-def render_clean_version(slots: Sequence[object], quality_labels: Sequence[object] = (), outline: DocumentOutline | None = None, segment_texts: dict[str, str] | None = None) -> RenderedDocument:
+def render_clean_version(slots: Sequence[object], quality_labels: Sequence[object] = (), outline: DocumentOutline | None = None, segment_texts: dict[str, str] | None = None, shown_elsewhere: Sequence[str] = ()) -> RenderedDocument:
     """The source document with the low-signal material taken out.
 
     When the source has headings of its own, the condensed document keeps them and their
@@ -32,7 +32,14 @@ def render_clean_version(slots: Sequence[object], quality_labels: Sequence[objec
     document; they belong to the rewrite rationale shown beside it.
     """
     removed_segment_ids = {getattr(label, "segment_id") for label in quality_labels if _value(getattr(label, "label")) in REMOVABLE_LABELS}
-    kept_slots = [slot for slot in slots if getattr(slot, "source_segment_id", None) not in removed_segment_ids]
+    # Removing repetition is what this product is for, so it cannot repeat a line the page
+    # has already shown — the identity block quotes the document's purpose above the body.
+    already_shown = {" ".join(text.split()) for text in shown_elsewhere if text}
+    kept_slots = [
+        slot for slot in slots
+        if getattr(slot, "source_segment_id", None) not in removed_segment_ids
+        and " ".join(getattr(slot, "normalized_text", "").split()) not in already_shown
+    ]
     # The clean version is the same document made shorter, so selection carries the
     # outline: every source section that has a candidate keeps at least one.
     selections = select_core(kept_slots, segment_texts=segment_texts or {}, outline=outline, budget=ITEM_BUDGETS["clean_version"])

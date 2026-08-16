@@ -114,3 +114,27 @@ def test_selection_is_reproducible() -> None:
     second = [item.slot.id for item in select_core(slots, segment_texts=texts, outline=None, budget=3)]
 
     assert first == second
+
+
+class TestFurnitureCannotBeVotedUp:
+    """Form is a fact about the document; a model's enthusiasm does not change it."""
+
+    # Shaped like the real thing: each row ends in an output column, not a sentence.
+    TABLE = ("단계 이름 핵심 질문 산출물 1 문제정의 무엇을 알고 싶은가? 문제정의서 1장 2 데이터 이해 한 행은 무엇을 의미하는가? "
+             "데이터 사전 3 품질진단 믿고 써도 되는가? 품질진단 리포트 4 탐색 어떤 모습인가? 기초 통계 5 원인/관계분석 왜인가? 관계도")
+
+    def test_a_table_the_model_loves_still_ranks_below_prose(self) -> None:
+        slots = [_slot(0, self.TABLE, 1.0, "segment-0"), _slot(1, DIRECTIVE, 0.6, "segment-1")]
+        texts = {"segment-0": self.TABLE, "segment-1": DIRECTIVE}
+
+        kept = select_core(slots, segment_texts=texts, outline=None, budget=2)
+
+        assert [item.slot.id for item in sorted(kept, key=lambda item: -item.score)][0] == "slot-1"
+
+    def test_a_table_is_still_kept_when_the_document_has_room(self) -> None:
+        """Held below prose, not thrown out: the body still carries the source's tables."""
+        slots = [_slot(0, self.TABLE, 1.0, "segment-0")]
+
+        kept = select_core(slots, segment_texts={"segment-0": self.TABLE}, outline=None, budget=5)
+
+        assert [item.slot.id for item in kept] == ["slot-0"]

@@ -16,7 +16,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
 
-from app.services.selection.rules import RuleScore, Shape, classify_shape, score_passage
+from app.services.selection.rules import SHAPE_CEILING, RuleScore, Shape, classify_shape, score_passage
 
 RULE_WEIGHT = 0.5
 MODEL_WEIGHT = 0.5
@@ -71,7 +71,9 @@ def _assess(slot: object, segment_texts: dict[str, str]) -> Selection:
     rule = score_passage(text, shape)
     importance = float(getattr(slot, "importance", 0.0))
     verdict = _verdict(rule.score, importance)
-    combined = round(RULE_WEIGHT * rule.score + MODEL_WEIGHT * importance, 4)
+    # The ceiling binds the combined score, not just the rule's half. A table is a table
+    # however highly the model rates its contents, so no importance can promote it.
+    combined = round(min(RULE_WEIGHT * rule.score + MODEL_WEIGHT * importance, SHAPE_CEILING.get(shape.value, 1.0)), 4)
     return Selection(slot=slot, score=combined, rule=rule, model_importance=importance, verdict=verdict, reason=_reason(verdict, rule))
 
 
